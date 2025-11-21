@@ -1,0 +1,424 @@
+/* Темная тема для Arcade Blocks */
+.root {
+    -fx-background-color: #1A1A2E;
+}
+
+.scene {
+    -fx-background-color: #1A1A2E;
+}
+
+/* Стили для letterbox полос */
+.game-viewport {
+    -fx-background-color: #1A1A2E;
+}
+
+/* Стили для всех панелей */
+.region, .pane, .container {
+    -fx-background-color: #1A1A2E;
+}
+
+/* Стили для окна */
+.window {
+    -fx-background-color: #1A1A2E;
+}
+
+/* Стили для слайдеров в стиле игры */
+.slider {
+    -fx-background-color: transparent;
+}
+
+.slider .track {
+    -fx-background-color: #1A1A2E;
+    -fx-background-radius: 5px;
+    -fx-border-color: #B388FF;
+    -fx-border-width: 2px;
+    -fx-border-radius: 5px;
+    -fx-effect: dropshadow(gaussian, #B388FF, 3, 0.3, 0, 0);
+}
+
+.slider .thumb {
+    -fx-background-color: #7EE8FA;
+    -fx-background-radius: 8px;
+    -fx-border-color: #7EE8FA;
+    -fx-border-width: 2px;
+    -fx-border-radius: 8px;
+    -fx-effect: dropshadow(gaussian, #7EE8FA, 8, 0.5, 0, 0);
+}
+
+.slider .thumb:hover {
+    -fx-background-color: #FF6EC7;
+    -fx-border-color: #FF6EC7;
+    -fx-effect: dropshadow(gaussian, #FF6EC7, 10, 0.7, 0, 0);
+}
+
+.slider .thumb:pressed {
+    -fx-background-color: #7FFF7F;
+    -fx-border-color: #7FFF7F;
+    -fx-effect: dropshadow(gaussian, #7FFF7F, 12, 0.8, 0, 0);
+}
+
+/* Стили для комбобоксов в стиле игры */
+.combo-box {
+    -fx-background-color: #1A1A2E;
+    -fx-border-color: #B388FF;
+    -fx-border-width: 2px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-effect: dropshadow(gaussian, #B388FF, 3, 0.3, 0, 0);
+}
+
+.combo-box:hover {
+    -fx-border-color: #7EE8FA;
+    -fx-effect: dropshadow(gaussian, #7EE8FA, 5, 0.4, 0, 0);
+}
+
+.combo-box:focused {
+    -fx-border-color: #FF6EC7;
+    -fx-effect: dropshadow(gaussian, #FF6EC7, 8, 0.6, 0, 0);
+}
+
+.combo-box .arrow-button {
+    -fx-background-color: #B388FF;
+    -fx-border-color: #B388FF;
+    -fx-border-width: 1px;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+}
+
+.combo-box .arrow-button:hover {
+    -fx-background-color: #7EE8FA;
+    -fx-border-color: #7EE8FA;
+}
+
+.combo-box .list-cell {
+    -fx-background-color: #1A1A2E;
+    -fx-text-fill: #E0E0E0;
+    -fx-font-family: "Orbitron";
+    -fx-font-size: 12px;
+}
+
+.combo-box .list-cell:hover {
+    -fx-background-color: #B388FF40;
+    -fx-text-fill: #FFFFFF;
+}
+
+.combo-box .list-cell:selected {
+    -fx-background-color: #7EE8FA;
+    -fx-text-fill: #000000;
+}
+
+.combo-box-popup .list-view {
+    -fx-background-color: #1A1A2E;
+    -fx-border-color: #B388FF;
+    -fx-border-width: 2px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-effect: dropshadow(gaussian, #B388FF, 5, 0.4, 0, 0);
+}
+
+.combo-box-popup .list-view .list-cell {
+    -fx-background-color: #1A1A2E;
+    -fx-text-fill: #E0E0E0;
+    -fx-font-family: "Orbitron";
+    -fx-font-size: 12px;
+    -fx-padding: 5px 10px;
+}
+
+.combo-box-popup .list-view .list-cell:hover {
+    -fx-background-color: #B388FF40;
+    -fx-text-fill: #FFFFFF;
+}
+
+.combo-box-popup .list-view .list-cell:selected {
+    -fx-background-color: #7EE8FA;
+    -fx-text-fill: #000000;
+}
+
+/* Стили для текстовых полей в стиле игры */
+.text-field {
+    -fx-background-color: #1A1A2E;
+    -fx-border-color: #B388FF;
+    -fx-border-width: 2px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-text-fill: #E0E0E0;
+    -fx-font-family: "Orbitron";
+    -fx-font-size: 12px;
+    -fx-effect: dropshadow(gaussian, #B388FF, 3, 0.3, 0, 0);
+}
+
+.text-field:hover {
+    -fx-border-color: #7EE8FA;
+    -fx-effect: dropshadow(gaussian, #7EE8FA, 5, 0.4, 0, 0);
+}
+
+.text-field:focused {
+    -fx-border-color: #FF6EC7;
+    -fx-effect: dropshadow(gaussian, #FF6EC7, 8, 0.6, 0, 0);
+}
+
+.text-field:focused .text {
+    -fx-text-fill: #FFFFFF;
+}
+
+/* Стили для ScrollPane в стиле игры */
+.scroll-pane {
+    -fx-background-color: #1A1A2E;
+    -fx-border-color: #B388FF;
+    -fx-border-width: 2px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-effect: dropshadow(gaussian, #B388FF, 3, 0.3, 0, 0);
+}
+
+.scroll-pane .viewport {
+    -fx-background-color: #1A1A2E;
+}
+
+.scroll-pane .corner {
+    -fx-background-color: #1A1A2E;
+}
+
+/* Стили для вертикального scrollbar */
+.scroll-pane .scroll-bar:vertical {
+    -fx-background-color: #1A1A2E;
+    -fx-background-radius: 5px;
+    -fx-border-color: #B388FF;
+    -fx-border-width: 1px;
+    -fx-border-radius: 5px;
+    -fx-pref-width: 12px;
+}
+
+.scroll-pane .scroll-bar:vertical .track {
+    -fx-background-color: #1A1A2E;
+    -fx-background-radius: 5px;
+    -fx-border-color: #B388FF;
+    -fx-border-width: 1px;
+    -fx-border-radius: 5px;
+}
+
+.scroll-pane .scroll-bar:vertical .thumb {
+    -fx-background-color: #7EE8FA;
+    -fx-background-radius: 5px;
+    -fx-border-color: #7EE8FA;
+    -fx-border-width: 1px;
+    -fx-border-radius: 5px;
+    -fx-effect: dropshadow(gaussian, #7EE8FA, 4, 0.4, 0, 0);
+}
+
+.scroll-pane .scroll-bar:vertical .thumb:hover {
+    -fx-background-color: #FF6EC7;
+    -fx-border-color: #FF6EC7;
+    -fx-effect: dropshadow(gaussian, #FF6EC7, 6, 0.6, 0, 0);
+}
+
+.scroll-pane .scroll-bar:vertical .thumb:pressed {
+    -fx-background-color: #7FFF7F;
+    -fx-border-color: #7FFF7F;
+    -fx-effect: dropshadow(gaussian, #7FFF7F, 8, 0.8, 0, 0);
+}
+
+.scroll-pane .scroll-bar:vertical .increment-button,
+.scroll-pane .scroll-bar:vertical .decrement-button {
+    -fx-background-color: #1A1A2E;
+    -fx-border-color: #B388FF;
+    -fx-border-width: 1px;
+    -fx-border-radius: 5px;
+    -fx-pref-height: 12px;
+}
+
+.scroll-pane .scroll-bar:vertical .increment-button:hover,
+.scroll-pane .scroll-bar:vertical .decrement-button:hover {
+    -fx-background-color: #B388FF40;
+    -fx-border-color: #7EE8FA;
+}
+
+.scroll-pane .scroll-bar:vertical .increment-arrow,
+.scroll-pane .scroll-bar:vertical .decrement-arrow {
+    -fx-background-color: #B388FF;
+    -fx-shape: "M 0 0 L 4 4 L 8 0 Z";
+}
+
+.scroll-pane .scroll-bar:vertical .increment-arrow:hover,
+.scroll-pane .scroll-bar:vertical .decrement-arrow:hover {
+    -fx-background-color: #7EE8FA;
+}
+
+/* Стили для горизонтального scrollbar */
+.scroll-pane .scroll-bar:horizontal {
+    -fx-background-color: #1A1A2E;
+    -fx-background-radius: 5px;
+    -fx-border-color: #B388FF;
+    -fx-border-width: 1px;
+    -fx-border-radius: 5px;
+    -fx-pref-height: 12px;
+}
+
+.scroll-pane .scroll-bar:horizontal .track {
+    -fx-background-color: #1A1A2E;
+    -fx-background-radius: 5px;
+    -fx-border-color: #B388FF;
+    -fx-border-width: 1px;
+    -fx-border-radius: 5px;
+}
+
+.scroll-pane .scroll-bar:horizontal .thumb {
+    -fx-background-color: #7EE8FA;
+    -fx-background-radius: 5px;
+    -fx-border-color: #7EE8FA;
+    -fx-border-width: 1px;
+    -fx-border-radius: 5px;
+    -fx-effect: dropshadow(gaussian, #7EE8FA, 4, 0.4, 0, 0);
+}
+
+.scroll-pane .scroll-bar:horizontal .thumb:hover {
+    -fx-background-color: #FF6EC7;
+    -fx-border-color: #FF6EC7;
+    -fx-effect: dropshadow(gaussian, #FF6EC7, 6, 0.6, 0, 0);
+}
+
+.scroll-pane .scroll-bar:horizontal .thumb:pressed {
+    -fx-background-color: #7FFF7F;
+    -fx-border-color: #7FFF7F;
+    -fx-effect: dropshadow(gaussian, #7FFF7F, 8, 0.8, 0, 0);
+}
+
+.scroll-pane .scroll-bar:horizontal .increment-button,
+.scroll-pane .scroll-bar:horizontal .decrement-button {
+    -fx-background-color: #1A1A2E;
+    -fx-border-color: #B388FF;
+    -fx-border-width: 1px;
+    -fx-border-radius: 5px;
+    -fx-pref-width: 12px;
+}
+
+.scroll-pane .scroll-bar:horizontal .increment-button:hover,
+.scroll-pane .scroll-bar:horizontal .decrement-button:hover {
+    -fx-background-color: #B388FF40;
+    -fx-border-color: #7EE8FA;
+}
+
+.scroll-pane .scroll-bar:horizontal .increment-arrow,
+.scroll-pane .scroll-bar:horizontal .decrement-arrow {
+    -fx-background-color: #B388FF;
+    -fx-shape: "M 0 0 L 4 4 L 0 8 Z";
+}
+
+.scroll-pane .scroll-bar:horizontal .increment-arrow:hover,
+.scroll-pane .scroll-bar:horizontal .decrement-arrow:hover {
+    -fx-background-color: #7EE8FA;
+}
+
+/* Стили для CheckBox в стиле игры */
+.check-box {
+    -fx-background-color: transparent;
+    -fx-border-color: #B388FF;
+    -fx-border-width: 2px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-effect: dropshadow(gaussian, #B388FF, 3, 0.3, 0, 0);
+}
+
+.check-box:hover {
+    -fx-border-color: #7EE8FA;
+    -fx-effect: dropshadow(gaussian, #7EE8FA, 5, 0.4, 0, 0);
+}
+
+.check-box:focused {
+    -fx-border-color: #FF6EC7;
+    -fx-effect: dropshadow(gaussian, #FF6EC7, 8, 0.6, 0, 0);
+}
+
+.check-box:selected {
+    -fx-background-color: #7EE8FA;
+    -fx-border-color: #7EE8FA;
+    -fx-effect: dropshadow(gaussian, #7EE8FA, 6, 0.5, 0, 0);
+}
+
+.check-box:selected:hover {
+    -fx-background-color: #FF6EC7;
+    -fx-border-color: #FF6EC7;
+    -fx-effect: dropshadow(gaussian, #FF6EC7, 8, 0.7, 0, 0);
+}
+
+.check-box:selected:focused {
+    -fx-background-color: #7FFF7F;
+    -fx-border-color: #7FFF7F;
+    -fx-effect: dropshadow(gaussian, #7FFF7F, 10, 0.8, 0, 0);
+}
+
+/* Стили для галочки в чекбоксе */
+.check-box .box {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-background-radius: 5px;
+    -fx-border-radius: 5px;
+}
+
+.check-box .mark {
+    -fx-background-color: #1A1A2E;
+    -fx-shape: "M 0 0 L 4 4 L 8 0 Z";
+    -fx-scale-shape: false;
+}
+
+.check-box:selected .mark {
+    -fx-background-color: #1A1A2E;
+    -fx-shape: "M 0 0 L 4 4 L 8 0 Z";
+    -fx-scale-shape: false;
+}
+
+.debug-checkbox {
+    -fx-background-color: rgba(15, 15, 28, 0.5);
+    -fx-border-color: #7EE8FA;
+    -fx-border-width: 2px;
+    -fx-border-radius: 6px;
+    -fx-background-radius: 6px;
+    -fx-padding: 6 12 6 12;
+    -fx-effect: dropshadow(gaussian, #7EE8FA70, 8, 0.5, 0, 0);
+}
+
+.debug-checkbox:hover {
+    -fx-border-color: #FF6EC7;
+    -fx-effect: dropshadow(gaussian, #FF6EC7A0, 12, 0.6, 0, 0);
+}
+
+.debug-checkbox:selected {
+    -fx-background-color: rgba(127, 255, 127, 0.25);
+    -fx-border-color: #7FFF7F;
+    -fx-effect: dropshadow(gaussian, #7FFF7FA0, 12, 0.7, 0, 0);
+}
+
+/* Стили для ProgressBar в стиле игры */
+.progress-bar {
+    -fx-background-color: #1A1A2E;
+    -fx-border-color: #B388FF;
+    -fx-border-width: 2px;
+    -fx-border-radius: 10px;
+    -fx-background-radius: 10px;
+    -fx-effect: dropshadow(gaussian, #B388FF, 8, 0.5, 0, 0);
+}
+
+.progress-bar .track {
+    -fx-background-color: #1A1A2E;
+    -fx-border-color: #B388FF;
+    -fx-border-width: 2px;
+    -fx-border-radius: 10px;
+    -fx-background-radius: 10px;
+    -fx-effect: dropshadow(gaussian, #B388FF, 5, 0.3, 0, 0);
+}
+
+.progress-bar .bar {
+    -fx-background-color: linear-gradient(to right, #7EE8FA, #00FF7F);
+    -fx-background-radius: 8px;
+    -fx-effect: dropshadow(gaussian, #7EE8FA, 15, 0.8, 0, 0);
+}
+
+.progress-bar:hover .bar {
+    -fx-background-color: linear-gradient(to right, #FF6EC7, #7EE8FA);
+    -fx-effect: dropshadow(gaussian, #FF6EC7, 20, 1.0, 0, 0);
+}
+
+.progress-bar:focused .bar {
+    -fx-background-color: linear-gradient(to right, #00FF7F, #FF6EC7);
+    -fx-effect: dropshadow(gaussian, #00FF7F, 25, 1.2, 0, 0);
+}
