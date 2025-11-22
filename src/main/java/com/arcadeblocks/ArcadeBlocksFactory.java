@@ -123,11 +123,11 @@ public class ArcadeBlocksFactory implements EntityFactory {
         PhysicsComponent physics = new PhysicsComponent();
         physics.setBodyType(BodyType.DYNAMIC);
         
-        var texture = TextureUtils.loadScaledTexture("bonus_score.png", 45);
+        var texture = TextureUtils.loadScaledTexture("bonus_score.png", 42);
         
         return entityBuilder(data)
             .type(EntityType.POWERUP)
-            .bbox(new HitBox(BoundingShape.circle(22)))
+            .bbox(new HitBox(BoundingShape.circle(21)))
             .view(texture)
             .with(physics)
             .collidable()
@@ -143,7 +143,7 @@ public class ArcadeBlocksFactory implements EntityFactory {
         }
         
         // Загружаем текстуру бонуса (масштаб под 1024px исходники)
-        var texture = TextureUtils.loadScaledTexture(bonusType.getTextureName(), 90, 47);
+        var texture = TextureUtils.loadScaledTexture(bonusType.getTextureName(), 85, 44);
 
         boolean invisibleCapsule = false;
         try {
@@ -158,7 +158,7 @@ public class ArcadeBlocksFactory implements EntityFactory {
         
         Entity entity = entityBuilder(data)
             .type(EntityType.BONUS)
-            .bbox(new HitBox(BoundingShape.box(90, 47)))
+            .bbox(new HitBox(BoundingShape.box(85, 44)))
             .view(texture)
             .collidable()
             .build();
@@ -176,8 +176,8 @@ public class ArcadeBlocksFactory implements EntityFactory {
         physics.setBodyType(BodyType.DYNAMIC);
         Projectile projectileComponent = new Projectile();
 
-        double shotWidth = 20;
-        double shotHeight = 30;
+        double shotWidth = 18;
+        double shotHeight = 27;
         var texture = TextureUtils.loadScaledTexture("plasma_shot.png", shotWidth, shotHeight);
         texture.setTranslateX(-shotWidth / 2.0);
         texture.setTranslateY(-shotHeight / 2.0);

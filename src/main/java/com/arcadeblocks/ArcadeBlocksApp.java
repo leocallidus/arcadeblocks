@@ -503,7 +503,7 @@ public class ArcadeBlocksApp extends GameApplication {
         settings.setWidth(savedResolution.getWidth());
         settings.setHeight(savedResolution.getHeight());
         settings.setTitle("Arcade Blocks");
-        settings.setVersion("1.19");
+        settings.setVersion("1.19.1");
         settings.setMainMenuEnabled(false);
         
         // Setting up the app icon

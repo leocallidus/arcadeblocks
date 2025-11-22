@@ -26,11 +26,11 @@ public class GameConfig {
     private static Resolution currentResolution = DEFAULT_RESOLUTION;
     
     // Размеры игровых объектов
-    public static final int PADDLE_WIDTH = 180;
-    public static final int PADDLE_HEIGHT = 30;
-    public static final int BALL_RADIUS = 12;
-    public static final int BRICK_WIDTH = 90;
-    public static final int BRICK_HEIGHT = 35;
+    public static final int PADDLE_WIDTH = 170;
+    public static final int PADDLE_HEIGHT = 28;
+    public static final int BALL_RADIUS = 11;
+    public static final int BRICK_WIDTH = 85;
+    public static final int BRICK_HEIGHT = 32;
     public static final double PADDLE_MAX_SIZE_MULTIPLIER = 6.0;
     
     // Отступы игрового поля

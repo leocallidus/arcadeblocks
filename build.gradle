@@ -137,7 +137,7 @@ task createAppImageSimple {
         def appimageDir = file("$buildDir/appimage")
         def appdir = file("$appimageDir/AppDir")
         def appName = "ArcadeBlocks"
-        def appVersion = "1.19"
+        def appVersion = "1.19.1"
         def executableName = "${appName}-${appVersion}.AppImage"
         
         // Создаем структуру AppImage
@@ -201,7 +201,7 @@ Type=Application
 Categories=Game;
 StartupWMClass=ArcadeBlocksApp
 X-AppImage-Name=Arcade Blocks
-X-AppImage-Version=1.19
+X-AppImage-Version=1.19.1
 '''
         
         // Копируем иконку
@@ -224,7 +224,7 @@ task createAppImageWithJRE {
     dependsOn 'jar'
     
     def appName = "ArcadeBlocks"
-    def appVersion = "1.19"
+    def appVersion = "1.19.1"
     def executableName = "${appName}-${appVersion}.AppImage"
     
     doLast {
@@ -314,7 +314,7 @@ Type=Application
 Categories=Game;
 StartupWMClass=ArcadeBlocksApp
 X-AppImage-Name=Arcade Blocks
-X-AppImage-Version=1.19
+X-AppImage-Version=1.19.1
 '''
         
         // Копируем иконку
@@ -347,7 +347,7 @@ task createWindowsExe {
     
     doLast {
         def appName = "ArcadeBlocks"
-        def appVersion = "1.19"
+        def appVersion = "1.19.1"
         def mainClass = "com.arcadeblocks.ArcadeBlocksApp"
         def jarFile = jar.archiveFile.get().asFile
         def iconFile = file("src/main/resources/assets/textures/game_logo.ico")
@@ -422,7 +422,7 @@ task createWindowsPortable {
     
     doLast {
         def appName = "ArcadeBlocks"
-        def appVersion = "1.19"
+        def appVersion = "1.19.1"
         def mainClass = "com.arcadeblocks.ArcadeBlocksApp"
         def jarFile = jar.archiveFile.get().asFile
         def iconFile = file("src/main/resources/assets/textures/game_logo.ico")
@@ -504,7 +504,7 @@ task createLinuxAppImage {
 
     doLast {
         def appName = "ArcadeBlocks"
-        def appVersion = "1.19"
+        def appVersion = "1.19.1"
         def mainClass = "com.arcadeblocks.ArcadeBlocksApp"
         def jarFile = jar.archiveFile.get().asFile
         def iconFile = file("src/main/resources/assets/textures/arcadeblocks_logo_vertical.png")
