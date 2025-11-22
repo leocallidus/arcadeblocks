@@ -194,7 +194,7 @@ arcade_blocks_game/
 │   └── natives/                      # Platform-specific libraries
 ├── src/test/java/                    # Unit & integration tests
 ├── build.gradle                      # Build configuration
-├── CLAUDE.md                         # Development guide
+├── DOCUMENTATION.md                  # Development guide
 └── README.md                         # This file
 ```
 
