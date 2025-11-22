@@ -140,16 +140,32 @@ public class VlcjMediaBackend implements VideoPlayerBackend {
             @Override
             public void playing(MediaPlayer mediaPlayer) {
                 ready = true;
+                // System.out.println("🎬 VLC: Video started playing");
+                
+                // Получаем длительность после начала воспроизведения
+                // long duration = mediaPlayer.media().info().duration();
+                // if (duration > 0) {
+                //     System.out.println("🎬 VLC: Video duration: " + (duration / 1000.0) + " seconds");
+                // }
             }
             
             @Override
             public void finished(MediaPlayer mediaPlayer) {
+                // System.out.println("🎬 VLC: Video finished event received");
                 Platform.runLater(() -> {
                     Runnable callback = onFinishedRef != null ? onFinishedRef.get() : null;
                     if (callback != null) {
+                        // System.out.println("🎬 VLC: Calling onFinished callback");
                         callback.run();
                     }
                 });
+            }
+            
+            @Override
+            public void lengthChanged(MediaPlayer mediaPlayer, long newLength) {
+                // if (newLength > 0) {
+                //     System.out.println("🎬 VLC: Length changed - Video duration: " + (newLength / 1000.0) + " seconds");
+                // }
             }
             
             @Override
@@ -177,8 +193,10 @@ public class VlcjMediaBackend implements VideoPlayerBackend {
             // Convert URL to file path for VLC
             String fullPath;
             if (resourceUrl.getProtocol().equals("jar")) {
-                // Video is in JAR - need to extract it
-                throw new Exception("VLC cannot play videos from JAR. Please extract video files to external directory.");
+                // Video is in JAR - extract it to temp directory
+                System.out.println("🎬 VLC: Extracting video from JAR: " + videoPath);
+                VideoResourceExtractor extractor = VideoResourceExtractor.getInstance();
+                fullPath = extractor.extractVideo(videoPath);
             } else if (resourceUrl.getProtocol().equals("file")) {
                 // Video is a file - convert URL to file path
                 try {
@@ -197,7 +215,7 @@ public class VlcjMediaBackend implements VideoPlayerBackend {
                 throw new Exception("Unsupported resource protocol: " + resourceUrl.getProtocol());
             }
             
-            // System.out.println("🎬 VLC loading video from: " + fullPath);
+            System.out.println("🎬 VLC loading video from: " + fullPath);
             player.media().play(fullPath);
             player.controls().pause(); // Start paused, will be played when play() is called
             

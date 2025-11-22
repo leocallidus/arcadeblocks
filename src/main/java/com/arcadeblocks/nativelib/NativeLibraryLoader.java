@@ -192,11 +192,26 @@ public class NativeLibraryLoader {
      */
     private static String[] getLibrariesForPlatform(String platform) {
         if (platform.startsWith("windows")) {
-            return new String[]{"SDL2", "SDL2_mixer"};
+            return new String[]{
+                "SDL2", "SDL2_mixer",
+                // VLC библиотеки - ЗАКОММЕНТИРОВАНО
+                // "libvlc", "libvlccore", "axvlc", "npvlc",
+                // VLC зависимости - ЗАКОММЕНТИРОВАНО
+                // "libgme", "libogg-0", "libopus-0", "libopusfile-0", 
+                // "libwavpack-1", "libxmp"
+            };
         } else if (platform.startsWith("linux")) {
-            return new String[]{"libSDL2", "libSDL2_mixer"};
+            return new String[]{
+                "libSDL2", "libSDL2_mixer",
+                // VLC библиотеки - ЗАКОММЕНТИРОВАНО
+                // "libvlc", "libvlccore"
+            };
         } else if (platform.startsWith("macos")) {
-            return new String[]{"libSDL2", "libSDL2_mixer"};
+            return new String[]{
+                "libSDL2", "libSDL2_mixer",
+                // VLC библиотеки - ЗАКОММЕНТИРОВАНО
+                // "libvlc", "libvlccore"
+            };
         } else {
             throw new UnsupportedOperationException("Неподдерживаемая платформа: " + platform);
         }

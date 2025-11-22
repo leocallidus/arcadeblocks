@@ -135,7 +135,7 @@ public class ArcadeBlocksApp extends GameApplication {
     private boolean fadeOutActive = false;
     private boolean fadeOutCompleted = false;
     private final List<Runnable> fadeOutCallbacks = new ArrayList<>();
-    // КРИТИЧНО: Список активных FadeTransition для очистки при переходе между уровнями
+    // Список активных FadeTransition для очистки при переходе между уровнями
     private final List<FadeTransition> activeFadeTransitions = new ArrayList<>();
     private javafx.util.Duration autoLaunchDelay = Duration.seconds(5); // Задержка автозапуска мяча после смерти
     private javafx.util.Duration postFadeDelay = Duration.millis(150);
@@ -476,19 +476,25 @@ public class ArcadeBlocksApp extends GameApplication {
     
     private void configureRuntimeStorage() {
         try {
-            var logsDir = AppDataManager.getLogsDirectory();
-            AppDataManager.getFxglDirectory(); // ensure auxiliary FXGL storage exists
+            // Disable file logging to avoid permission issues in Program Files
+            // Only use console output for logging
             Logger.removeAllOutputs();
-            Logger.addOutput(new FileOutput("FXGL", logsDir.toString()), LoggerLevel.DEBUG);
             var consoleLevel = applicationMode != null ? applicationMode.getLoggerLevel() : LoggerLevel.INFO;
             Logger.addOutput(new ConsoleOutput(), consoleLevel);
+            
+            // Ensure data directories exist
+            AppDataManager.getLogsDirectory();
+            AppDataManager.getFxglDirectory();
         } catch (Exception ex) {
-            System.err.println("Unable to reconfigure the log directory FXGL: " + ex.getMessage());
+            System.err.println("Unable to reconfigure logging: " + ex.getMessage());
         }
     }
     
     @Override
     protected void initSettings(GameSettings settings) {
+        // Disable file logging to avoid permission issues
+        settings.setFileSystemWriteAllowed(false);
+        
         // Load the saved resolution from the database
         com.arcadeblocks.config.Resolution savedResolution = loadResolutionFromDatabase();
         GameConfig.setCurrentResolution(savedResolution);
@@ -6593,8 +6599,9 @@ public class ArcadeBlocksApp extends GameApplication {
 
             // Fallback timer in case video doesn't send onFinished
             // AtomicBoolean finished prevents double cleanup if video completes before timer
+            // Увеличен запас с 0.1 до 3.0 секунд, чтобы VLC успел отправить событие finished
             if (fallbackDurationSeconds > 0.0) {
-                FXGL.runOnce(cleanup, Duration.seconds(fallbackDurationSeconds + 0.1));
+                FXGL.runOnce(cleanup, Duration.seconds(fallbackDurationSeconds + 3.0));
             }
             
             } catch (Exception e) {
@@ -7397,6 +7404,38 @@ public class ArcadeBlocksApp extends GameApplication {
     }
 
     public static void main(String[] args) {
+        // Initialize AppDataManager and set working directory BEFORE anything else
+        String dataDir = AppDataManager.getDataDirectory().toString();
+        
+        // Pre-create logs directory with proper permissions
+        try {
+            java.nio.file.Path logsPath = java.nio.file.Paths.get(dataDir, "logs");
+            java.nio.file.Files.createDirectories(logsPath);
+        } catch (Exception e) {
+            System.err.println("Failed to create logs directory: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        // Pre-create system directory
+        try {
+            java.nio.file.Path systemPath = java.nio.file.Paths.get(dataDir, "system");
+            java.nio.file.Files.createDirectories(systemPath);
+        } catch (Exception e) {
+            System.err.println("Failed to create system directory: " + e.getMessage());
+        }
+        
+        // Save original working directory for resource loading
+        String originalUserDir = System.getProperty("user.dir");
+        System.setProperty("app.install.dir", originalUserDir);
+        
+        // Set working directory to user data directory so FXGL creates logs/ and system/ there
+        System.setProperty("user.dir", dataDir);
+        
+        // Disable DPI scaling for Windows - force 100% scaling
+        System.setProperty("glass.win.uiScale", "100%");
+        System.setProperty("glass.gtk.uiScale", "100%");
+        System.setProperty("prism.allowhidpi", "false");
+        
         // Setup console encoding for correct UTF-8 display (especially important for Windows)
         com.arcadeblocks.utils.ConsoleUtils.setupConsoleEncoding();
         

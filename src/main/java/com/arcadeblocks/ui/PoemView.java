@@ -25,7 +25,7 @@ import javafx.scene.text.TextAlignment;
 import javafx.util.Duration;
 
 /**
- * Экран поэмы после финального уровня.
+ * Экран поэмы после уровня 100.
  */
 public class PoemView extends StackPane {
 

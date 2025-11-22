@@ -338,3 +338,312 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
 
+// Задача для создания Windows .exe с встроенной Java
+task createWindowsExe {
+    description = 'Создает Windows .exe файл с встроенной Java используя jpackage'
+    group = 'distribution'
+    
+    dependsOn 'jar'
+    
+    doLast {
+        def appName = "ArcadeBlocks"
+        def appVersion = "1.19"
+        def mainClass = "com.arcadeblocks.ArcadeBlocksApp"
+        def jarFile = jar.archiveFile.get().asFile
+        def iconFile = file("src/main/resources/assets/textures/game_logo.ico")
+        def outputDir = file("$buildDir/jpackage")
+        
+        // Создаем выходную директорию
+        outputDir.mkdirs()
+        
+        // Проверяем наличие иконки
+        if (!iconFile.exists()) {
+            println "Предупреждение: файл иконки не найден: $iconFile"
+            println "Будет использована иконка по умолчанию"
+            iconFile = null
+        }
+        
+        // Формируем команду jpackage
+        def jpackageCmd = [
+            'jpackage',
+            '--type', 'exe',
+            '--name', appName,
+            '--app-version', appVersion,
+            '--input', jarFile.parent,
+            '--main-jar', jarFile.name,
+            '--main-class', mainClass,
+            '--dest', outputDir.absolutePath,
+            '--vendor', 'LCGames',
+            '--win-console',
+            '--win-dir-chooser',
+            '--win-menu',
+            '--win-shortcut',
+            '--java-options', '-Djava.library.path=./natives',
+            '--java-options', '-Dfile.encoding=UTF-8',
+            '--java-options', '-Xmx2g'
+        ]
+        
+        // Добавляем иконку если она существует
+        if (iconFile != null) {
+            jpackageCmd.addAll(['--icon', iconFile.absolutePath])
+        }
+        
+        println "Запуск jpackage..."
+        println "Команда: ${jpackageCmd.join(' ')}"
+        
+        try {
+            def process = jpackageCmd.execute()
+            process.waitForProcessOutput(System.out, System.err)
+            
+            if (process.exitValue() == 0) {
+                println "\n✓ Windows .exe успешно создан в: $outputDir"
+                println "Установщик: ${outputDir}/${appName}-${appVersion}.exe"
+            } else {
+                println "\n✗ Ошибка при создании .exe файла"
+                println "Код выхода: ${process.exitValue()}"
+            }
+        } catch (Exception e) {
+            println "\n✗ Ошибка при запуске jpackage: ${e.message}"
+            println "\nУбедитесь что:"
+            println "1. Установлен JDK 14 или выше (текущая версия: ${System.getProperty('java.version')})"
+            println "2. jpackage доступен в PATH"
+            println "3. Установлен WiX Toolset 3.x для создания .exe установщика"
+            println "   Скачать: https://wixtoolset.org/releases/"
+        }
+    }
+}
+
+// Задача для создания portable .exe (без установщика)
+task createWindowsPortable {
+    description = 'Создает portable Windows приложение с встроенной Java'
+    group = 'distribution'
+    
+    dependsOn 'jar'
+    
+    doLast {
+        def appName = "ArcadeBlocks"
+        def appVersion = "1.19"
+        def mainClass = "com.arcadeblocks.ArcadeBlocksApp"
+        def jarFile = jar.archiveFile.get().asFile
+        def iconFile = file("src/main/resources/assets/textures/game_logo.ico")
+        def outputDir = file("$buildDir/jpackage-portable")
+        
+        // Создаем выходную директорию
+        outputDir.mkdirs()
+        
+        // Проверяем наличие иконки
+        if (!iconFile.exists()) {
+            println "Предупреждение: файл иконки не найден: $iconFile"
+            iconFile = null
+        }
+        
+        // Формируем команду jpackage для app-image (portable)
+        def jpackageCmd = [
+            'jpackage',
+            '--type', 'app-image',
+            '--name', appName,
+            '--app-version', appVersion,
+            '--input', jarFile.parent,
+            '--main-jar', jarFile.name,
+            '--main-class', mainClass,
+            '--dest', outputDir.absolutePath,
+            '--vendor', 'LC Games',
+            '--description', 'Arcade Blocks - современная аркадная игра в стиле Arkanoid',
+            '--java-options', '-Djava.library.path=./natives',
+            '--java-options', '-Dfile.encoding=UTF-8',
+            '--java-options', '-Xmx2g'
+        ]
+        
+        // Добавляем иконку если она существует
+        if (iconFile != null) {
+            jpackageCmd.addAll(['--icon', iconFile.absolutePath])
+        }
+        
+        println "Создание portable версии..."
+        println "Команда: ${jpackageCmd.join(' ')}"
+        
+        try {
+            def process = jpackageCmd.execute()
+            process.waitForProcessOutput(System.out, System.err)
+            
+            if (process.exitValue() == 0) {
+                println "\n✓ Portable версия успешно создана в: $outputDir"
+                println "Запускаемый файл: ${outputDir}/${appName}/${appName}.exe"
+                
+                // Копируем нативные библиотеки
+                def nativesSource = file('src/main/resources/natives/windows-x64')
+                def nativesDest = file("${outputDir}/${appName}/natives")
+                
+                if (nativesSource.exists()) {
+                    copy {
+                        from nativesSource
+                        into nativesDest
+                    }
+                    println "✓ Нативные библиотеки скопированы"
+                }
+            } else {
+                println "\n✗ Ошибка при создании portable версии"
+                println "Код выхода: ${process.exitValue()}"
+            }
+        } catch (Exception e) {
+            println "\n✗ Ошибка при запуске jpackage: ${e.message}"
+            println "\nУбедитесь что:"
+            println "1. Установлен JDK 14 или выше (текущая версия: ${System.getProperty('java.version')})"
+            println "2. jpackage доступен в PATH"
+        }
+    }
+}
+
+
+// Задача для создания Linux AppImage с встроенной Java
+task createLinuxAppImage {
+    description = 'Создает Linux AppImage с встроенной Java используя jpackage'
+    group = 'distribution'
+
+    dependsOn 'jar'
+
+    doLast {
+        def appName = "ArcadeBlocks"
+        def appVersion = "1.19"
+        def mainClass = "com.arcadeblocks.ArcadeBlocksApp"
+        def jarFile = jar.archiveFile.get().asFile
+        def iconFile = file("src/main/resources/assets/textures/arcadeblocks_logo_vertical.png")
+        def outputDir = file("$buildDir/jpackage-linux")
+        def appImageDir = file("${outputDir}/${appName}")
+
+        // Удаляем старую директорию если существует
+        if (appImageDir.exists()) {
+            appImageDir.deleteDir()
+            println "Удалена старая директория: $appImageDir"
+        }
+
+        // Создаем выходную директорию
+        outputDir.mkdirs()
+
+        // Проверяем наличие иконки
+        if (!iconFile.exists()) {
+            println "Предупреждение: файл иконки не найден: $iconFile"
+            iconFile = null
+        }
+
+        // Формируем команду jpackage для app-image (Linux)
+        def jpackageCmd = [
+            'jpackage',
+            '--type', 'app-image',
+            '--name', appName,
+            '--app-version', appVersion,
+            '--input', jarFile.parent,
+            '--main-jar', jarFile.name,
+            '--main-class', mainClass,
+            '--dest', outputDir.absolutePath,
+            '--vendor', 'LC Games',
+            '--description', 'Arcade Blocks - современная аркадная игра в стиле Arkanoid',
+            '--java-options', '-Djava.library.path=./natives',
+            '--java-options', '-Dfile.encoding=UTF-8',
+            '--java-options', '-Xmx2g'
+        ]
+
+        // Добавляем иконку если она существует
+        if (iconFile != null) {
+            jpackageCmd.addAll(['--icon', iconFile.absolutePath])
+        }
+
+        println "Создание Linux app-image..."
+        println "Команда: ${jpackageCmd.join(' ')}"
+
+        try {
+            def process = jpackageCmd.execute()
+            process.waitForProcessOutput(System.out, System.err)
+
+            if (process.exitValue() == 0) {
+                println "\n✓ Linux app-image успешно создан в: $appImageDir"
+                println "Запускаемый файл: ${appImageDir}/bin/${appName}"
+
+                // Копируем нативные библиотеки
+                def nativesSource = file('src/main/resources/natives/linux-x64')
+                def nativesDest = file("${appImageDir}/lib/app/natives")
+
+                if (nativesSource.exists()) {
+                    nativesDest.mkdirs()
+                    copy {
+                        from nativesSource
+                        into nativesDest
+                    }
+                    println "✓ Нативные библиотеки скопированы в: $nativesDest"
+                }
+
+                // Создаем .desktop файл в корне для appimagetool
+                def desktopFile = file("${appImageDir}/${appName}.desktop")
+                desktopFile.text = """[Desktop Entry]
+Type=Application
+Name=Arcade Blocks
+Comment=Современная аркадная игра в стиле Arkanoid
+Exec=bin/${appName}
+Icon=${appName}
+Categories=Game;ArcadeGame;
+Terminal=false
+"""
+                println "✓ Desktop файл создан в корне app-image"
+
+                // Копируем иконку в корень для appimagetool
+                def iconSource = file("${appImageDir}/lib/${appName}.png")
+                def iconDest = file("${appImageDir}/${appName}.png")
+                if (iconSource.exists()) {
+                    copy {
+                        from iconSource
+                        into appImageDir
+                    }
+                    println "✓ Иконка скопирована в корень app-image"
+                }
+
+                // Создаем AppRun скрипт
+                def appRunFile = file("${appImageDir}/AppRun")
+                appRunFile.text = """#!/bin/bash
+HERE="\$(dirname "\$(readlink -f "\${0}")")"
+export PATH="\${HERE}/bin:\$PATH"
+exec "\${HERE}/bin/${appName}" "\$@"
+"""
+                appRunFile.setExecutable(true)
+                println "✓ AppRun скрипт создан"
+
+                // Создаем AppImage используя appimagetool
+                println "\nСоздание AppImage..."
+                def appImageFile = file("${outputDir}/${appName}-${appVersion}.AppImage")
+
+                try {
+                    def appImageCmd = ['appimagetool', appImageDir.absolutePath, appImageFile.absolutePath]
+                    def appImageProcess = appImageCmd.execute()
+                    appImageProcess.waitForProcessOutput(System.out, System.err)
+
+                    if (appImageProcess.exitValue() == 0) {
+                        println "\n✓ AppImage успешно создан: $appImageFile"
+                        println "Запуск: ./${appImageFile.name}"
+                    } else {
+                        println "\n⚠ Не удалось создать AppImage (код выхода: ${appImageProcess.exitValue()})"
+                        println "App-image доступен в: $appImageDir"
+                        println "\nДля создания AppImage вручную:"
+                        println "1. Установите appimagetool: https://github.com/AppImage/AppImageKit/releases"
+                        println "2. Запустите: appimagetool ${appImageDir.absolutePath} ${appImageFile.absolutePath}"
+                    }
+                } catch (Exception e) {
+                    println "\n⚠ appimagetool не найден: ${e.message}"
+                    println "App-image доступен в: $appImageDir"
+                    println "\nДля создания AppImage:"
+                    println "1. Установите appimagetool: https://github.com/AppImage/AppImageKit/releases"
+                    println "2. Запустите: appimagetool ${appImageDir.absolutePath} ${appImageFile.absolutePath}"
+                }
+            } else {
+                println "\n✗ Ошибка при создании app-image"
+                println "Код выхода: ${process.exitValue()}"
+            }
+        } catch (Exception e) {
+            println "\n✗ Ошибка при запуске jpackage: ${e.message}"
+            println "\nУбедитесь что:"
+            println "1. Установлен JDK 14 или выше (текущая версия: ${System.getProperty('java.version')})"
+            println "2. jpackage доступен в PATH"
+            println "3. Установлены необходимые пакеты для Linux:"
+            println "   - Debian/Ubuntu: sudo apt install fakeroot"
+            println "   - Fedora/RHEL: sudo dnf install fakeroot"
+        }
+    }
+}
