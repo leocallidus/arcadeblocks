@@ -33,6 +33,28 @@ Arcade Blocks is a modern arcade-style block breaking game (Arkanoid-style) buil
 ./gradlew clean
 ```
 
+### Git LFS Setup
+
+This project uses **Git LFS** (Large File Storage) to manage video files (boss cutscenes). Video files are stored separately and downloaded on demand.
+
+```bash
+# Install Git LFS (one-time setup)
+git lfs install
+
+# Pull all LFS files (video files)
+git lfs pull
+
+# Check LFS status
+git lfs status
+
+# List tracked LFS files
+git lfs ls-files
+```
+
+**Important**: If you cloned the repository before installing Git LFS, video files will be pointer files (small text files). Run `git lfs pull` to download the actual video files.
+
+**Tracked files**: All `*.mp4` files in `src/main/resources/assets/textures/` are managed by Git LFS (configured in `.gitattributes`).
+
 ### Distribution Builds
 
 ```bash

@@ -61,6 +61,7 @@ For detailed technical documentation, architecture overview, and development gui
 ### Prerequisites
 - **Java 21** or higher ([Download JDK](https://www.azul.com/downloads/?package=jdk-fx#zulu))
 - **Gradle** (included via wrapper)
+- **Git LFS** (for video files) - [Install Git LFS](https://git-lfs.github.com/)
 - **VLC Media Player** (optional, for boss videos)
 
 ### Running from Source
@@ -70,11 +71,14 @@ For detailed technical documentation, architecture overview, and development gui
 git clone https://github.com/leocallidus/arcadeblocks.git
 cd arcadeblocks
 
+# Pull video files from Git LFS
+git lfs pull
+
 # Run the game
 ./gradlew run
 ```
 
-That's it! The game will automatically download dependencies and launch.
+**Note**: This project uses Git LFS to store large video files (boss cutscenes). Make sure Git LFS is installed before cloning. If videos don't play, run `git lfs pull` to download them.
 
 ---
 

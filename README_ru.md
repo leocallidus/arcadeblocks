@@ -61,6 +61,7 @@
 ### Требования
 - **Java 21** или выше ([Скачать JDK](https://www.azul.com/downloads/?package=jdk-fx#zulu))
 - **Gradle** (включен через wrapper)
+- **Git LFS** (для видеофайлов) - [Установить Git LFS](https://git-lfs.github.com/)
 - **VLC Media Player** (опционально, для видео с боссами)
 
 ### Запуск из исходного кода
@@ -70,11 +71,14 @@
 git clone https://github.com/leocallidus/arcadeblocks.git
 cd arcadeblocks
 
+# Загрузить видеофайлы из Git LFS
+git lfs pull
+
 # Запустить игру
 ./gradlew run
 ```
 
-Вот и всё! Игра автоматически загрузит зависимости и запустится.
+**Примечание**: Этот проект использует Git LFS для хранения больших видеофайлов (заставки боссов). Убедитесь, что Git LFS установлен перед клонированием. Если видео не воспроизводятся, выполните `git lfs pull` для их загрузки.
 
 ---
 
