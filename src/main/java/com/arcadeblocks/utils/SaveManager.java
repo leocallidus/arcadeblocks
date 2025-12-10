@@ -2,6 +2,7 @@ package com.arcadeblocks.utils;
 
 import com.arcadeblocks.config.BonusConfig;
 import com.arcadeblocks.config.GameConfig;
+import com.arcadeblocks.config.GameLine;
 import com.arcadeblocks.localization.LocalizationManager;
 import com.arcadeblocks.persistence.GameSnapshot;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,6 +39,22 @@ public class SaveManager {
     private static final ObjectMapper SNAPSHOT_MAPPER = new ObjectMapper();
 
     private static final String CURRENT_PLAYER_NAME_KEY = "current_player_name";
+
+    private GameLine currentGameLine = GameLine.ARCADE_BLOCKS;
+
+    public void setCurrentGameLine(GameLine line) {
+        if (line != null) {
+            currentGameLine = line;
+        }
+    }
+
+    public GameLine getCurrentGameLine() {
+        return currentGameLine != null ? currentGameLine : GameLine.ARCADE_BLOCKS;
+    }
+
+    private GameLine resolveCurrentGameLine() {
+        return currentGameLine != null ? currentGameLine : GameLine.ARCADE_BLOCKS;
+    }
     
     private static String getDefaultPlayerName() {
         try {
@@ -96,6 +113,12 @@ public class SaveManager {
         setDefaultIfNotExists("difficulty", "NORMAL");
         // ╨п╨╖╤Л╨║ ╨┐╨╛ ╤Г╨╝╨╛╨╗╤З╨░╨╜╨╕╤О
         setDefaultIfNotExists("language", "en");
+        
+        // Показываем фон уровня по умолчанию (опция отключения фона выключена)
+        setDefaultIfNotExists("level_background_enabled", "true");
+        // Скорость турбо-режима (множитель) по умолчанию
+        // По умолчанию 2.5x (2.5 * 100 = 250 в слайдере)
+        setDefaultIfNotExists("turbo_mode_speed", "2.5");
         
         // ╨Э╨░╤Б╤В╤А╨╛╨╣╨║╨╕ ╨┤╨╡╨▒╨░╨│ ╨╝╨╡╨╜╤О (╨▒╨╛╨╜╤Г╤Б╤Л)
         loadDefaultDebugSettings();
@@ -310,13 +333,23 @@ public class SaveManager {
         setSettingAsync("sound_enabled", String.valueOf(enabled));
     }
     
+    public double getTurboModeSpeed() {
+        String value = databaseManager.getSetting("turbo_mode_speed");
+        return value != null ? Double.parseDouble(value) : 1.5;
+    }
+
+    public void setTurboModeSpeed(double speed) {
+        setSettingAsync("turbo_mode_speed", String.valueOf(speed));
+    }
+    
+    
+    // Метод удален, так как настройка убрана из интерфейса
     public boolean isCallBallSoundEnabled() {
-        String value = databaseManager.getSetting("call_ball_sound_enabled");
-        return value != null ? Boolean.parseBoolean(value) : true;
+        return true; // По умолчанию включено, если код все еще где-то вызывает
     }
     
     public void setCallBallSoundEnabled(boolean enabled) {
-        setSettingAsync("call_ball_sound_enabled", String.valueOf(enabled));
+        // Ничего не делаем
     }
 
     
@@ -341,15 +374,145 @@ public class SaveManager {
         setSettingAsync("control_" + action.toLowerCase(), key);
     }
     
+    public boolean isLevelBackgroundEnabled() {
+        String value = databaseManager.getSetting("level_background_enabled");
+        return value != null ? Boolean.parseBoolean(value) : true;
+    }
+
+    public void setLevelBackgroundEnabled(boolean enabled) {
+        setSettingAsync("level_background_enabled", String.valueOf(enabled));
+    }
+    
     // ╨Ь╨╡╤В╨╛╨┤╤Л ╨┤╨╗╤П ╤А╨░╨▒╨╛╤В╤Л ╤Б ╨╕╨│╤А╨╛╨▓╤Л╨╝╨╕ ╨┤╨░╨╜╨╜╤Л╨╝╨╕
     public int getCurrentLevel() {
-        String value = databaseManager.getGameData("current_level");
-        return value != null ? Integer.parseInt(value) : (Integer) gameData.getOrDefault("current_level", 1);
+        String key = getGameLinePrefix(resolveCurrentGameLine()) + "current_level";
+        String value = databaseManager.getGameData(key);
+        if (value == null && resolveCurrentGameLine() == GameLine.ARCADE_BLOCKS) {
+            value = databaseManager.getGameData("current_level"); // legacy key
+        }
+        return value != null ? Integer.parseInt(value) : (Integer) gameData.getOrDefault(key, 1);
     }
     
     public void setCurrentLevel(int level) {
-        gameData.put("current_level", level);
-        setGameDataAsync("current_level", String.valueOf(level));
+        String key = getGameLinePrefix(resolveCurrentGameLine()) + "current_level";
+        gameData.put(key, level);
+        setGameDataAsync(key, String.valueOf(level));
+        if (resolveCurrentGameLine() == GameLine.ARCADE_BLOCKS) {
+            // maintain legacy compatibility
+            setGameDataAsync("current_level", String.valueOf(level));
+        }
+    }
+
+    public static final class LineProgress {
+        public final int maxLevel;
+        public final boolean completed;
+
+        public LineProgress(int maxLevel, boolean completed) {
+            this.maxLevel = maxLevel;
+            this.completed = completed;
+        }
+    }
+
+    /**
+     * Получить прогресс по указанной игровой линии (макс уровень и флаг завершения)
+     */
+    public LineProgress getLineProgress(GameLine gameLine) {
+        GameLine line = gameLine != null ? gameLine : GameLine.ARCADE_BLOCKS;
+        int maxLevel = 0;
+        boolean completed = false;
+        for (int slot = 1; slot <= 4; slot++) {
+            SaveInfo info = getSaveInfo(line, slot);
+            if (info == null) {
+                continue;
+            }
+            if (info.level > maxLevel) {
+                maxLevel = info.level;
+            }
+            if (info.gameCompleted || info.level >= line.getEndLevel()) {
+                completed = true;
+            }
+        }
+        return new LineProgress(maxLevel, completed);
+    }
+
+    /**
+     * Прогресс основной кампании (Arcade Blocks) независимо от выбранной линии.
+     */
+    public LineProgress getMainCampaignProgress() {
+        GameLine line = GameLine.ARCADE_BLOCKS;
+        LineProgress progress = getLineProgress(line);
+
+        // Учитываем легаси-ключ current_level (без слотов), чтобы не терять прогресс
+        int legacyLevel = 0;
+        try {
+            String legacy = databaseManager.getGameData("current_level");
+            if (legacy != null && !legacy.isBlank()) {
+                legacyLevel = Integer.parseInt(legacy.trim());
+            }
+        } catch (Exception ignored) {}
+
+        int maxLevel = Math.max(progress.maxLevel, legacyLevel);
+        boolean completed = progress.completed || legacyLevel >= line.getEndLevel();
+
+        return new LineProgress(maxLevel, completed);
+    }
+
+    /**
+     * Возвращает true, если в любом слоте (любой линии) установлен флаг завершения игры.
+     */
+    public boolean isAnyGameCompleted() {
+        for (GameLine line : GameLine.values()) {
+            for (int slot = 1; slot <= 4; slot++) {
+                if (isGameCompletedInSlot(line, slot)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Определить состояние прогресса для главного меню:
+     * COMPLETED — если любая линия/слот завершены или достигнут финальный уровень линии;
+     * AFTER_LEVEL_100 — если основная линия имеет уровень 101+ и не завершена;
+     * NORMAL — по умолчанию.
+     */
+    public com.arcadeblocks.config.AudioConfig.GameProgressState getMenuProgressState() {
+        boolean completed = false;
+        boolean afterLevel100 = false;
+        boolean globalCompletedFlag = "true".equalsIgnoreCase(databaseManager.getGameData("main_campaign_completed"));
+
+        for (GameLine line : GameLine.values()) {
+            for (int slot = 1; slot <= 4; slot++) {
+                SaveInfo info = getSaveInfo(line, slot);
+                if (info == null) {
+                    continue;
+                }
+                int level = info.level;
+                int endLevel = line.getEndLevel();
+                if (isGameCompletedInSlot(line, slot) || level >= endLevel) {
+                    completed = true;
+                }
+                if (line == GameLine.ARCADE_BLOCKS && level >= 101) {
+                    afterLevel100 = true;
+                }
+            }
+        }
+
+        completed = completed || globalCompletedFlag;
+
+        System.out.println("[SaveManager] getMenuProgressState: completedAny=" + completed
+            + ", afterLevel100=" + afterLevel100
+            + ", legacyLevel=" + getCurrentLevel()
+            + ", globalCompletedFlag=" + globalCompletedFlag);
+
+        if (completed) {
+            return com.arcadeblocks.config.AudioConfig.GameProgressState.COMPLETED;
+        }
+        if (afterLevel100) {
+            return com.arcadeblocks.config.AudioConfig.GameProgressState.AFTER_LEVEL_100;
+        }
+        return com.arcadeblocks.config.AudioConfig.GameProgressState.NORMAL;
     }
     
     public int getLives() {
@@ -376,8 +539,20 @@ public class SaveManager {
     }
     
     public int getScore() {
+        Object cached = gameData.get("score");
+        if (cached instanceof Number) {
+            return ((Number) cached).intValue();
+        }
+
         String value = databaseManager.getGameData("score");
-        return value != null ? Integer.parseInt(value) : (Integer) gameData.getOrDefault("score", 0);
+        if (value != null) {
+            try {
+                int parsed = Integer.parseInt(value);
+                gameData.put("score", parsed);
+                return parsed;
+            } catch (NumberFormatException ignored) {}
+        }
+        return (Integer) gameData.getOrDefault("score", 0);
     }
     
     public void setScore(int score) {
@@ -401,8 +576,9 @@ public class SaveManager {
             return (String) cached;
         }
 
-        int activeSlot = getActiveSaveSlot();
-        String slotName = getPlayerNameForSlot(activeSlot);
+        GameLine currentGameLine = resolveCurrentGameLine();
+        int activeSlot = getActiveSaveSlot(currentGameLine);
+        String slotName = getPlayerNameForSlot(currentGameLine, activeSlot);
         if (slotName == null || slotName.isBlank()) {
             slotName = getStoredGlobalPlayerName();
         }
@@ -417,16 +593,20 @@ public class SaveManager {
     }
 
     public String getPlayerNameForSlot(int slotNumber) {
+        return getPlayerNameForSlot(resolveCurrentGameLine(), slotNumber);
+    }
+
+    private String getPlayerNameForSlot(GameLine gameLine, int slotNumber) {
         if (slotNumber < 1) {
             return getStoredGlobalPlayerName();
         }
-        if (slotNumber == getActiveSaveSlot()) {
+        if (slotNumber == getActiveSaveSlot(gameLine)) {
             Object cached = gameData.get(CURRENT_PLAYER_NAME_KEY);
             if (cached instanceof String && !((String) cached).isBlank()) {
                 return (String) cached;
             }
         }
-        String value = databaseManager.getGameData("save_slot_" + slotNumber + "_player_name");
+        String value = databaseManager.getGameData(getSlotKey(gameLine, slotNumber) + "_player_name");
         if (value == null || value.isBlank()) {
             return getStoredGlobalPlayerName();
         }
@@ -434,12 +614,13 @@ public class SaveManager {
     }
 
     public void setPlayerNameForSlot(int slotNumber, String name) {
+        GameLine currentGameLine = resolveCurrentGameLine();
         if (slotNumber < 1) {
             return;
         }
         String sanitized = sanitizePlayerName(name);
-        submitDbTask(() -> databaseManager.setGameData("save_slot_" + slotNumber + "_player_name", sanitized));
-        if (slotNumber == getActiveSaveSlot()) {
+        submitDbTask(() -> databaseManager.setGameData(getSlotKey(currentGameLine, slotNumber) + "_player_name", sanitized));
+        if (slotNumber == getActiveSaveSlot(currentGameLine)) {
             gameData.put(CURRENT_PLAYER_NAME_KEY, sanitized);
         }
     }
@@ -528,6 +709,145 @@ public class SaveManager {
             gameData.remove("level_" + levelNumber + "_completed");
             removeGameDataAsync("level_" + levelNumber + "_completed");
         }
+    }
+
+    public boolean isLevelStatsRecorded(int levelNumber) {
+        Object cached = gameData.get("level_" + levelNumber + "_stats_recorded");
+        if (cached instanceof Boolean) {
+            return (Boolean) cached;
+        }
+        String value = databaseManager.getGameData("level_" + levelNumber + "_stats_recorded");
+        if (value != null) {
+            boolean parsed = Boolean.parseBoolean(value);
+            gameData.put("level_" + levelNumber + "_stats_recorded", parsed);
+            return parsed;
+        }
+        return false;
+    }
+
+    public void markLevelStatsRecorded(int levelNumber) {
+        gameData.put("level_" + levelNumber + "_stats_recorded", true);
+        setGameDataAsync("level_" + levelNumber + "_stats_recorded", "true");
+    }
+
+    public void setLevelStars(int levelNumber, int stars) {
+        int clamped = Math.max(1, Math.min(5, stars));
+        gameData.put("level_" + levelNumber + "_stars", clamped);
+        setGameDataAsync("level_" + levelNumber + "_stars", String.valueOf(clamped));
+    }
+
+    public int getLevelStars(int levelNumber) {
+        Object cached = gameData.get("level_" + levelNumber + "_stars");
+        if (cached instanceof Number) {
+            return ((Number) cached).intValue();
+        }
+        String value = databaseManager.getGameData("level_" + levelNumber + "_stars");
+        if (value != null) {
+            try {
+                int parsed = Integer.parseInt(value);
+                gameData.put("level_" + levelNumber + "_stars", parsed);
+                return parsed;
+            } catch (NumberFormatException ignored) {}
+        }
+        return 0;
+    }
+
+    public double getAverageStarsForLine(com.arcadeblocks.config.GameLine gameLine) {
+        if (gameLine == null) {
+            return -1.0;
+        }
+        int start = gameLine.getStartLevel();
+        int end = gameLine.getEndLevel();
+        int total = 0;
+        int count = 0;
+        for (int level = start; level <= end; level++) {
+            int stars = getLevelStars(level);
+            if (stars > 0) {
+                total += stars;
+                count++;
+            }
+        }
+        if (count == 0) {
+            return -1.0;
+        }
+        return (double) total / (double) count;
+    }
+
+    private String buildLineKey(com.arcadeblocks.config.GameLine line, String suffix) {
+        String id = line != null ? line.getId() : "unknown";
+        return "line_" + id + "_" + suffix;
+    }
+
+    public void addLineTimeSeconds(com.arcadeblocks.config.GameLine line, double seconds) {
+        if (line == null || seconds <= 0) return;
+        String key = buildLineKey(line, "time_seconds");
+        double current = getLineTimeSeconds(line);
+        double next = current < 0 ? seconds : current + seconds;
+        gameData.put(key, next);
+        setGameDataAsync(key, String.valueOf(next));
+    }
+
+    public double getLineTimeSeconds(com.arcadeblocks.config.GameLine line) {
+        if (line == null) return -1;
+        String key = buildLineKey(line, "time_seconds");
+        Object cached = gameData.get(key);
+        if (cached instanceof Number) {
+            return ((Number) cached).doubleValue();
+        }
+        String value = databaseManager.getGameData(key);
+        if (value != null) {
+            try {
+                double parsed = Double.parseDouble(value);
+                gameData.put(key, parsed);
+                return parsed;
+            } catch (NumberFormatException ignored) {}
+        }
+        return -1;
+    }
+
+    public void addLineBonuses(com.arcadeblocks.config.GameLine line, int positive, int negative) {
+        if (line == null) return;
+        if (positive > 0) {
+            addLineBonusesInternal(line, "positive_bonuses", positive);
+        }
+        if (negative > 0) {
+            addLineBonusesInternal(line, "negative_bonuses", negative);
+        }
+    }
+
+    private void addLineBonusesInternal(com.arcadeblocks.config.GameLine line, String suffix, int delta) {
+        String key = buildLineKey(line, suffix);
+        int current = getLineBonuses(line, suffix);
+        int next = Math.max(0, current) + delta;
+        gameData.put(key, next);
+        setGameDataAsync(key, String.valueOf(next));
+    }
+
+    private int getLineBonuses(com.arcadeblocks.config.GameLine line, String suffix) {
+        String key = buildLineKey(line, suffix);
+        Object cached = gameData.get(key);
+        if (cached instanceof Number) {
+            return ((Number) cached).intValue();
+        }
+        String value = databaseManager.getGameData(key);
+        if (value != null) {
+            try {
+                int parsed = Integer.parseInt(value);
+                gameData.put(key, parsed);
+                return parsed;
+            } catch (NumberFormatException ignored) {}
+        }
+        return 0;
+    }
+
+    public int getLinePositiveBonuses(com.arcadeblocks.config.GameLine line) {
+        if (line == null) return 0;
+        return getLineBonuses(line, "positive_bonuses");
+    }
+
+    public int getLineNegativeBonuses(com.arcadeblocks.config.GameLine line) {
+        if (line == null) return 0;
+        return getLineBonuses(line, "negative_bonuses");
     }
     
     public int getTotalLevelsCompleted() {
@@ -644,7 +964,11 @@ public class SaveManager {
      * ╨г╨┤╨░╨╗╨╕╤В╤М ╤Б╨╛╤Е╤А╨░╨╜╨╡╨╜╨╕╨╡ ╨░╨║╤В╨╕╨▓╨╜╨╛╨│╨╛ ╤Б╨╗╨╛╤В╨░.
      */
     public void deleteSaveFile() {
-        deleteSaveFileForSlot(getActiveSaveSlot());
+        deleteSaveFile(resolveCurrentGameLine());
+    }
+
+    public void deleteSaveFile(GameLine gameLine) {
+        deleteSaveFileForSlot(gameLine, getActiveSaveSlot(gameLine));
     }
 
     /**
@@ -653,20 +977,25 @@ public class SaveManager {
      * @param slotNumber ╨╜╨╛╨╝╨╡╤А ╤Б╨╗╨╛╤В╨░, ╨║╨╛╤В╨╛╤А╤Л╨╣ ╨╜╤Г╨╢╨╜╨╛ ╨╛╤З╨╕╤Б╤В╨╕╤В╤М
      */
     public void deleteSaveFileForSlot(int slotNumber) {
+        deleteSaveFileForSlot(resolveCurrentGameLine(), slotNumber);
+    }
+
+    public void deleteSaveFileForSlot(GameLine gameLine, int slotNumber) {
         if (slotNumber < 1) {
             slotNumber = 1;
         }
 
-        setActiveSaveSlot(slotNumber);
+        setActiveSaveSlot(gameLine, slotNumber);
         clearGameSnapshot();
-        clearSaveSlot(slotNumber);
+        clearSaveSlot(gameLine, slotNumber);
 
         com.arcadeblocks.config.DifficultyLevel difficulty = getGameDifficulty();
         if (difficulty == null) {
             difficulty = getDifficulty();
         }
 
-        setCurrentLevel(1);
+        int resetLevel = (gameLine != null) ? gameLine.getStartLevel() : 1;
+        setCurrentLevel(resetLevel);
         setLives(difficulty.getLives());
         setScore(0);
         setTotalLevelsCompleted(0);
@@ -756,6 +1085,10 @@ public class SaveManager {
         setDefaultIfNotExists("debug_full_hp_enabled", "true");
         setDefaultIfNotExists("debug_level_pass_enabled", "true");
         setDefaultIfNotExists("debug_score_rain_enabled", "true");
+        setDefaultIfNotExists("debug_bonus_score200_enabled", "true");
+        setDefaultIfNotExists("debug_bonus_score500_enabled", "true");
+        setDefaultIfNotExists("debug_add_five_seconds_enabled", "true");
+        setDefaultIfNotExists("debug_call_ball_enabled", "true");
         setDefaultIfNotExists("debug_darkness_enabled", "true");
         setDefaultIfNotExists("debug_reset_enabled", "true");
         setDefaultIfNotExists("debug_trickster_enabled", "true");
@@ -792,6 +1125,10 @@ public class SaveManager {
     public void loadDebugSettingsToBonusConfig() {
         // ╨Ч╨░╨│╤А╤Г╨╢╨░╨╡╨╝ ╨╜╨░╤Б╤В╤А╨╛╨╣╨║╨╕ ╨▒╨╛╨╜╤Г╤Б╨╛╨▓
         BonusConfig.setBonusEnabled("BONUS_SCORE_ENABLED", getDebugBonusEnabled("bonus_score_enabled"));
+        BonusConfig.setBonusEnabled("BONUS_SCORE_200_ENABLED", getDebugBonusEnabled("bonus_score200_enabled"));
+        BonusConfig.setBonusEnabled("BONUS_SCORE_500_ENABLED", getDebugBonusEnabled("bonus_score500_enabled"));
+        BonusConfig.setBonusEnabled("ADD_FIVE_SECONDS_ENABLED", getDebugBonusEnabled("add_five_seconds_enabled"));
+        BonusConfig.setBonusEnabled("CALL_BALL_ENABLED", getDebugBonusEnabled("call_ball_enabled"));
         BonusConfig.setBonusEnabled("EXTRA_LIFE_ENABLED", getDebugBonusEnabled("extra_life_enabled"));
         BonusConfig.setBonusEnabled("INCREASE_PADDLE_ENABLED", getDebugBonusEnabled("increase_paddle_enabled"));
         BonusConfig.setBonusEnabled("DECREASE_PADDLE_ENABLED", getDebugBonusEnabled("decrease_paddle_enabled"));
@@ -831,6 +1168,10 @@ public class SaveManager {
     public void saveDebugSettingsFromBonusConfig() {
         // ╨б╨╛╤Е╤А╨░╨╜╤П╨╡╨╝ ╨╜╨░╤Б╤В╤А╨╛╨╣╨║╨╕ ╨▒╨╛╨╜╤Г╤Б╨╛╨▓
         setDebugBonusEnabled("bonus_score_enabled", BonusConfig.getBonusEnabled("BONUS_SCORE_ENABLED"));
+        setDebugBonusEnabled("bonus_score200_enabled", BonusConfig.getBonusEnabled("BONUS_SCORE_200_ENABLED"));
+        setDebugBonusEnabled("bonus_score500_enabled", BonusConfig.getBonusEnabled("BONUS_SCORE_500_ENABLED"));
+        setDebugBonusEnabled("add_five_seconds_enabled", BonusConfig.getBonusEnabled("ADD_FIVE_SECONDS_ENABLED"));
+        setDebugBonusEnabled("call_ball_enabled", BonusConfig.getBonusEnabled("CALL_BALL_ENABLED"));
         setDebugBonusEnabled("extra_life_enabled", BonusConfig.getBonusEnabled("EXTRA_LIFE_ENABLED"));
         setDebugBonusEnabled("increase_paddle_enabled", BonusConfig.getBonusEnabled("INCREASE_PADDLE_ENABLED"));
         setDebugBonusEnabled("decrease_paddle_enabled", BonusConfig.getBonusEnabled("DECREASE_PADDLE_ENABLED"));
@@ -875,13 +1216,21 @@ public class SaveManager {
      * ╨Р╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╤Б╨╛╤Е╤А╨░╨╜╨╕╤В╤М ╤В╨╡╨║╤Г╤Й╨╕╨╣ ╨┐╤А╨╛╨│╤А╨╡╤Б╤Б ╨▓ ╤Г╨║╨░╨╖╨░╨╜╨╜╤Л╨╣ ╤Б╨╗╨╛╤В
      */
     public void autoSaveToSlot(int slotNumber) {
-        String saveKey = "save_slot_" + slotNumber;
+        autoSaveToSlot(resolveCurrentGameLine(), slotNumber);
+    }
+
+    /**
+     * Автосохранение данных в слот с учетом игровой линии
+     */
+    public void autoSaveToSlot(GameLine gameLine, int slotNumber) {
+        GameLine effectiveLine = (gameLine != null) ? gameLine : GameLine.ARCADE_BLOCKS;
+        String saveKey = getSlotKey(effectiveLine, slotNumber);
         String currentTime = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"));
         int level = getCurrentLevel();
         int lives = getLives();
         int score = getScore();
         String difficulty = getGameDifficulty().name();
-        String playerName = getPlayerNameForSlot(slotNumber);
+        String playerName = getPlayerNameForSlot(effectiveLine, slotNumber);
         
         String saveName = computeDefaultSaveName(slotNumber);
         
@@ -969,7 +1318,13 @@ public class SaveManager {
      * ╨Я╨╛╨╗╤Г╤З╨╕╤В╤М ╨╕╨╜╤Д╨╛╤А╨╝╨░╤Ж╨╕╤О ╨╛ ╤Б╨╛╤Е╤А╨░╨╜╨╡╨╜╨╕╨╕ ╨▓ ╤Б╨╗╨╛╤В╨╡
      */
     public SaveInfo getSaveInfo(int slotNumber) {
-        String saveKey = "save_slot_" + slotNumber;
+        // Legacy main-line compatibility: delegate to line-aware API
+        return getSaveInfo(GameLine.ARCADE_BLOCKS, slotNumber);
+    }
+
+    public SaveInfo getSaveInfo(GameLine gameLine, int slotNumber) {
+        GameLine line = gameLine != null ? gameLine : GameLine.ARCADE_BLOCKS;
+        String saveKey = getSlotKey(line, slotNumber);
         String saveExists = databaseManager.getGameData(saveKey);
         
         if (saveExists != null && saveExists.equals("true")) {
@@ -980,7 +1335,7 @@ public class SaveManager {
             String score = databaseManager.getGameData(saveKey + "_score");
             String difficultyValue = databaseManager.getGameData(saveKey + "_difficulty");
             String playerName = databaseManager.getGameData(saveKey + "_player_name");
-            boolean gameCompleted = isGameCompletedInSlot(slotNumber);
+            boolean gameCompleted = isGameCompletedInSlot(line, slotNumber);
             
             com.arcadeblocks.config.DifficultyLevel difficulty = null;
             if (difficultyValue != null) {
@@ -998,14 +1353,21 @@ public class SaveManager {
             String defaultTime = computeUnknownSaveTime();
             String resolvedTime = resolveSaveSlotTime(lastPlayTime, defaultTime);
             
+            int levelValue = level != null ? Integer.parseInt(level) : line.getStartLevel();
+            int livesValue = lives != null ? Integer.parseInt(lives) : difficulty.getLives();
+            int scoreValue = score != null ? Integer.parseInt(score) : 0;
+            String resolvedPlayerName = (playerName != null && !playerName.isBlank())
+                ? playerName.trim()
+                : getStoredGlobalPlayerName();
+
             return new SaveInfo(
                 resolveSaveSlotName(name, slotNumber, defaultName),
                 resolvedTime,
-                level != null ? Integer.parseInt(level) : 1,
-                lives != null ? Integer.parseInt(lives) : 3,
-                score != null ? Integer.parseInt(score) : 0,
+                levelValue,
+                livesValue,
+                scoreValue,
                 difficulty,
-                (playerName != null && !playerName.isBlank()) ? playerName.trim() : getStoredGlobalPlayerName(),
+                resolvedPlayerName,
                 gameCompleted
             );
         }
@@ -1017,8 +1379,13 @@ public class SaveManager {
      * ╨Р╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╤Б╨╛╤Е╤А╨░╨╜╨╕╤В╤М ╤В╨╡╨║╤Г╤Й╨╕╨╣ ╨┐╤А╨╛╨│╤А╨╡╤Б╤Б ╨▓ ╨░╨║╤В╨╕╨▓╨╜╤Л╨╣ ╤Б╨╗╨╛╤В
      */
     public void autoSaveToActiveSlot() {
-        int slot = getActiveSaveSlot();
-        autoSaveToSlot(slot);
+        GameLine currentGameLine = resolveCurrentGameLine();
+        autoSaveToActiveSlot(currentGameLine);
+    }
+
+    public void autoSaveToActiveSlot(GameLine gameLine) {
+        int slot = getActiveSaveSlot(gameLine);
+        autoSaveToSlot(gameLine, slot);
     }
     
     private String computeDefaultSaveName(int slotNumber) {
@@ -1130,11 +1497,18 @@ public class SaveManager {
      * @param slotNumber номер слота
      */
     public void setGameCompletedForSlot(int slotNumber) {
+        setGameCompletedForSlot(resolveCurrentGameLine(), slotNumber);
+    }
+
+    public void setGameCompletedForSlot(GameLine gameLine, int slotNumber) {
         if (slotNumber < 1) {
             return;
         }
-        String key = "save_slot_" + slotNumber + "_game_completed";
+        String key = getSlotKey(gameLine, slotNumber) + "_game_completed";
         setGameDataAsync(key, "true");
+        if (gameLine == GameLine.ARCADE_BLOCKS) {
+            setGameDataAsync("main_campaign_completed", "true");
+        }
     }
     
     /**
@@ -1143,10 +1517,14 @@ public class SaveManager {
      * @return true если игра завершена
      */
     public boolean isGameCompletedInSlot(int slotNumber) {
+        return isGameCompletedInSlot(resolveCurrentGameLine(), slotNumber);
+    }
+
+    public boolean isGameCompletedInSlot(GameLine gameLine, int slotNumber) {
         if (slotNumber < 1) {
             return false;
         }
-        String key = "save_slot_" + slotNumber + "_game_completed";
+        String key = getSlotKey(gameLine, slotNumber) + "_game_completed";
         String value = databaseManager.getGameData(key);
         return "true".equalsIgnoreCase(value);
     }
@@ -1155,6 +1533,133 @@ public class SaveManager {
      * Установить флаг завершения игры для текущего активного слота
      */
     public void setGameCompletedForActiveSlot() {
-        setGameCompletedForSlot(getActiveSaveSlot());
+        GameLine currentGameLine = resolveCurrentGameLine();
+        setGameCompletedForSlot(currentGameLine, getActiveSaveSlot(currentGameLine));
+    }
+
+    // ========== Методы для поддержки разных игровых линий ==========
+
+    /**
+     * Получить префикс ключа для игровой линии
+     */
+    private String getGameLinePrefix(GameLine gameLine) {
+        if (gameLine == null || gameLine == GameLine.ARCADE_BLOCKS) {
+            return ""; // Основная кампания без префикса для обратной совместимости
+        }
+        return gameLine.getId() + "_";
+    }
+
+    /**
+     * Получить ключ слота для игровой линии
+     */
+    private String getSlotKey(GameLine gameLine, int slotNumber) {
+        return getGameLinePrefix(gameLine) + "save_slot_" + slotNumber;
+    }
+
+    /**
+     * Сохранить в слот для конкретной игровой линии
+     */
+    public void saveToSlot(GameLine gameLine, int slotNumber, int level, int lives, int score, String playerName) {
+        if (gameLine == null || gameLine == GameLine.ARCADE_BLOCKS) {
+            autoSaveToSlot(GameLine.ARCADE_BLOCKS, slotNumber);
+            return;
+        }
+
+        String saveKey = getSlotKey(gameLine, slotNumber);
+        String timestamp = java.time.LocalDateTime.now()
+            .format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"));
+
+        submitDbTask(() -> {
+            databaseManager.setGameData(saveKey, "true");
+            databaseManager.setGameData(saveKey + "_name", computeDefaultSaveName(slotNumber));
+            databaseManager.setGameData(saveKey + "_time", timestamp);
+            databaseManager.setGameData(saveKey + "_level", String.valueOf(level));
+            databaseManager.setGameData(saveKey + "_lives", String.valueOf(lives));
+            databaseManager.setGameData(saveKey + "_score", String.valueOf(score));
+            databaseManager.setGameData(saveKey + "_difficulty", getDifficulty().name());
+            if (playerName != null && !playerName.isBlank()) {
+                databaseManager.setGameData(saveKey + "_player_name", playerName.trim());
+            }
+        });
+    }
+
+    /**
+     * Загрузить из слота для конкретной игровой линии
+     */
+    public boolean loadFromSlot(GameLine gameLine, int slotNumber) {
+        if (gameLine == null || gameLine == GameLine.ARCADE_BLOCKS) {
+            return loadFromSlot(slotNumber);
+        }
+
+        String saveKey = getSlotKey(gameLine, slotNumber);
+        String saveExists = databaseManager.getGameData(saveKey);
+
+        if (saveExists != null && saveExists.equals("true")) {
+            String level = databaseManager.getGameData(saveKey + "_level");
+            String lives = databaseManager.getGameData(saveKey + "_lives");
+            String score = databaseManager.getGameData(saveKey + "_score");
+            String difficultyValue = databaseManager.getGameData(saveKey + "_difficulty");
+            String playerName = databaseManager.getGameData(saveKey + "_player_name");
+
+            if (difficultyValue != null) {
+                try {
+                    setGameDifficulty(com.arcadeblocks.config.DifficultyLevel.valueOf(difficultyValue));
+                } catch (IllegalArgumentException ignored) {}
+            }
+
+            if (level != null) setCurrentLevel(Integer.parseInt(level));
+            if (lives != null) setLives(Integer.parseInt(lives));
+            if (score != null) setScore(Integer.parseInt(score));
+            if (playerName != null && !playerName.isBlank()) {
+                gameData.put(CURRENT_PLAYER_NAME_KEY, playerName.trim());
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Очистить слот для конкретной игровой линии
+     */
+    public void clearSaveSlot(GameLine gameLine, int slotNumber) {
+        if (gameLine == null || gameLine == GameLine.ARCADE_BLOCKS) {
+            clearSaveSlot(slotNumber);
+            return;
+        }
+
+        String saveKey = getSlotKey(gameLine, slotNumber);
+        submitDbTask(() -> {
+            databaseManager.removeGameData(saveKey);
+            databaseManager.removeGameData(saveKey + "_name");
+            databaseManager.removeGameData(saveKey + "_time");
+            databaseManager.removeGameData(saveKey + "_level");
+            databaseManager.removeGameData(saveKey + "_lives");
+            databaseManager.removeGameData(saveKey + "_score");
+            databaseManager.removeGameData(saveKey + "_difficulty");
+            databaseManager.removeGameData(saveKey + "_player_name");
+            databaseManager.removeGameData(saveKey + "_game_completed");
+        });
+    }
+
+    /**
+     * Установить активный слот для игровой линии
+     */
+    public void setActiveSaveSlot(GameLine gameLine, int slotNumber) {
+        String key = getGameLinePrefix(gameLine) + "active_save_slot";
+        setGameDataAsync(key, String.valueOf(slotNumber));
+    }
+
+    /**
+     * Получить активный слот для игровой линии
+     */
+    public int getActiveSaveSlot(GameLine gameLine) {
+        if (gameLine == null || gameLine == GameLine.ARCADE_BLOCKS) {
+            return getActiveSaveSlot();
+        }
+        String key = getGameLinePrefix(gameLine) + "active_save_slot";
+        String value = databaseManager.getGameData(key);
+        return value != null ? Integer.parseInt(value) : 1;
     }
 }

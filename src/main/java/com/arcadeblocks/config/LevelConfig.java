@@ -75,7 +75,9 @@ public class LevelConfig {
         new LevelChapter(9, "IX", "chapter.title.9", "Проект \"Тень\"", 71, 80, "#F0F0F0"),  // Neon Silver
         new LevelChapter(10, "X", "chapter.title.10", "Фрактальная Архитектура", 81, 90, "#9D00FF"),  // Neon Indigo
         new LevelChapter(11, "XI", "chapter.title.11", "Точка Невозврата", 91, 100, "#FFFFFF"),  // Neon White
-        new LevelChapter(12, "XII", "chapter.title.12", "Восстановление Системы", 101, 116, "#DD00FF")  // Neon Plum
+        new LevelChapter(12, "XII", "chapter.title.12", "Восстановление Системы", 101, 116, "#DD00FF"),  // Neon Plum
+        // LBreakout1 campaign
+        new LevelChapter(201, "LB-I", "chapter.title.lbreakout1", "Архивный протокол", 5000, 5029, "#00FFFF")
     );
 
     public static List<LevelChapter> getChapters() {
@@ -89,6 +91,11 @@ public class LevelConfig {
             .orElse(null);
     }
 
+    public enum LevelFormat {
+        JSON,
+        LBREAKOUT
+    }
+
     /**
      * Данные уровня
      */
@@ -98,12 +105,22 @@ public class LevelConfig {
         private final String levelFile;
         private final String backgroundImage;
         private final String musicFile;
+        private final LevelFormat levelFormat;
+        private final int externalLevelIndex;
+
         public LevelData(String nameKey, String defaultName, String levelFile, String backgroundImage, String musicFile) {
+            this(nameKey, defaultName, levelFile, backgroundImage, musicFile, LevelFormat.JSON, -1);
+        }
+
+        public LevelData(String nameKey, String defaultName, String levelFile, String backgroundImage, String musicFile,
+                         LevelFormat levelFormat, int externalLevelIndex) {
             this.nameKey = nameKey;
             this.defaultName = defaultName;
             this.levelFile = levelFile;
             this.backgroundImage = backgroundImage;
             this.musicFile = musicFile;
+            this.levelFormat = levelFormat;
+            this.externalLevelIndex = externalLevelIndex;
         }
         
         // Getters
@@ -112,7 +129,50 @@ public class LevelConfig {
         public String getLevelFile() { return levelFile; }
         public String getBackgroundImage() { return backgroundImage; }
         public String getMusicFile() { return musicFile; }
+        public LevelFormat getLevelFormat() { return levelFormat; }
+        public int getExternalLevelIndex() { return externalLevelIndex; }
     }
+
+    private static final String[] LBREAKOUT_HD_BACKGROUNDS = {
+        "textures/back0.jpg",
+        "textures/back1.jpg",
+        "textures/back2.jpg",
+        "textures/back3.jpg",
+        "textures/back4.jpg"
+    };
+
+    private static final String[] LBREAKOUT_HD_TITLES = {
+        "Wall",
+        "Breakthrough",
+        "Level 03",
+        "U.F.O.",
+        "Pyramid",
+        "Bubbles",
+        "Level 07",
+        "Mushroom",
+        "Level 09",
+        "Chest",
+        "Level 11",
+        "Level 12",
+        "Egg",
+        "Web",
+        "Level 15",
+        "Bowl",
+        "Hill",
+        "Symmetry",
+        "Rainbow",
+        "House",
+        "'Fat Boy'",
+        "Twins",
+        "Crusher",
+        "Dead End",
+        "Level 25",
+        "Level 26",
+        "Barrier",
+        "Butterfly",
+        "Chamber",
+        "The Final"
+    };
 
     /**
      * Дополнительная метаинформация уровня
@@ -403,7 +463,35 @@ public class LevelConfig {
         
         // Финальный уровень 116
         put(116, new LevelData("level.name.116", "Уровень 116: Снежные Холмы", "level116.json", "level116.png", "music/level116.mp3"));
+
+        // LBreakoutHD campaign (original text levelset)
+        LevelConfig.registerLBreakoutHDLevels(this);
     }};
+
+    private static void registerLBreakoutHDLevels(Map<Integer, LevelData> target) {
+        String levelSetPath = "src/main/resources/assets/levels/lbreakout_levels/LBreakout1";
+        for (int i = 0; i < LBREAKOUT_HD_TITLES.length; i++) {
+            int levelNumber = 5000 + i;
+            String defaultName = "LBreakoutHD " + (i + 1) + ": " + LBREAKOUT_HD_TITLES[i];
+            target.put(levelNumber, new LevelData(
+                "level.name.lbreakouthd." + levelNumber,
+                defaultName,
+                levelSetPath,
+                LBREAKOUT_HD_BACKGROUNDS[i % LBREAKOUT_HD_BACKGROUNDS.length],
+                "",
+                LevelFormat.LBREAKOUT,
+                i
+            ));
+        }
+    }
+
+    public static String getLBreakoutHdTitle(int levelNumber) {
+        int index = levelNumber - 5000;
+        if (index >= 0 && index < LBREAKOUT_HD_TITLES.length) {
+            return LBREAKOUT_HD_TITLES[index];
+        }
+        return null;
+    }
 
     /**
      * Мета данные по уровням
@@ -558,6 +646,31 @@ public class LevelConfig {
             .introVideo("boss12_init.mp4", 8.0)
             .completionVideo("boss_completed12_video.mp4", 44.0)
             .build());
+
+        // Особые бонусные уровни
+        put(1010, LevelMetadata.builder()
+                .boss(true)
+                .completionMessage("bonus.level.completion.10", "{0} победил Железного Карателя!")
+                .completionPauseSeconds(15.0)
+                .introVideo("boss_init13.mp4", 8.0)
+                .completionVideo("boss_completed13.mp4", 15.0)
+                .build());
+
+        put(1020, LevelMetadata.builder()
+                .boss(true)
+                .completionMessage("bonus.level.completion.20", "{0} победил Сайласа!")
+                .completionPauseSeconds(23.0)
+                .introVideo("boss_init14.mp4", 8.0)
+                .completionVideo("boss_completed14.mp4", 23.0)
+                .build());
+
+        put(1021, LevelMetadata.builder()
+                .boss(true)
+                .completionMessage("bonus.level.completion.21", "{0} победил Ледяного Суверена!")
+                .completionPauseSeconds(51.0)
+                .introVideo("boss_init15.mp4", 8.0)
+                .completionVideo("boss_completed15.mp4", 51.0)
+                .build());
         
         // Финальный уровень 116
         put(116, LevelMetadata.builder()
@@ -565,10 +678,17 @@ public class LevelConfig {
             .completionPauseSeconds(58.0)  // Пауза после видео перед переходом в главное меню
             .completionVideo("level116_completed_video.mp4", 58.0)  // Длительность видео
             .build());
+
+        // Бонусная глава: уровень 1001 — видео инициализации
+        put(1001, LevelMetadata.builder()
+            .introVideo("level_bonus_init1.mp4", 8.0)
+            .build());
     }};
 
     private static final Set<Integer> BOSS_LEVELS = Set.of(
-        10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 114, 115
+        10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 114, 115,
+        // Бонусные боссы (Arcade Blocks Bonus)
+        1010, 1020, 1021
     );
     
     /**

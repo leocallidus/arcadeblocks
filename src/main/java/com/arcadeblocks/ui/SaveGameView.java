@@ -3,7 +3,9 @@ package com.arcadeblocks.ui;
 import com.almasb.fxgl.dsl.FXGL;
 import com.arcadeblocks.ArcadeBlocksApp;
 import com.arcadeblocks.config.GameConfig;
+import com.arcadeblocks.config.GameLine;
 import com.arcadeblocks.localization.LocalizationManager;
+import com.arcadeblocks.ui.MainMenuView;
 import com.arcadeblocks.utils.SaveManager;
 import com.arcadeblocks.ui.util.ResponsiveLayoutHelper;
 import com.arcadeblocks.utils.ImageCache;
@@ -36,6 +38,7 @@ public class SaveGameView extends StackPane {
     private ArcadeBlocksApp app;
     private SaveManager saveManager;
     private final LocalizationManager localizationManager;
+    private GameLine gameLine;
     private VBox contentBox;
     private List<SaveSlot> saveSlots;
     private Button backButton;
@@ -50,7 +53,12 @@ public class SaveGameView extends StackPane {
     private volatile boolean isClosing = false;
     
     public SaveGameView(ArcadeBlocksApp app) {
+        this(app, GameLine.ARCADE_BLOCKS);
+    }
+    
+    public SaveGameView(ArcadeBlocksApp app, GameLine gameLine) {
         this.app = app;
+        this.gameLine = gameLine;
         this.saveManager = app.getSaveManager();
         this.localizationManager = LocalizationManager.getInstance();
         this.saveSlots = new ArrayList<>();
@@ -141,7 +149,9 @@ public class SaveGameView extends StackPane {
     
     private Label createTitleLabel() {
         Label titleLabel = new Label();
-        localizationManager.bind(titleLabel, "savegame.title");
+        // Используем название игровой линии в заголовке
+        String titleKey = gameLine == GameLine.ARCADE_BLOCKS ? "savegame.title" : gameLine.getNameKey();
+        localizationManager.bind(titleLabel, titleKey);
         titleLabel.setFont(Font.font("Orbitron", FontWeight.BOLD, 36));
         titleLabel.setTextFill(Color.web(GameConfig.NEON_CYAN));
         titleLabel.setStyle("-fx-effect: dropshadow(gaussian, " + GameConfig.NEON_CYAN + ", 10, 0.5, 0, 0);");
@@ -591,21 +601,21 @@ public class SaveGameView extends StackPane {
 
         confirm.setOnAction(e -> {
             app.getAudioManager().playSFXByName("menu_select");
-            int activeSlot = saveManager.getActiveSaveSlot();
-            saveManager.clearSaveSlot(slotNumber);
+            int activeSlot = saveManager.getActiveSaveSlot(gameLine);
+            saveManager.clearSaveSlot(gameLine, slotNumber);
             if (activeSlot == slotNumber) {
                 saveManager.awaitPendingWrites();
                 int fallbackSlot = -1;
                 for (int i = 1; i <= 4; i++) {
-                    if (saveManager.getSaveInfo(i) != null) {
+                    if (saveManager.getSaveInfo(gameLine, i) != null) {
                         fallbackSlot = i;
                         break;
                     }
                 }
                 if (fallbackSlot == -1) {
-                    saveManager.setActiveSaveSlot(1);
+                    saveManager.setActiveSaveSlot(gameLine, 1);
                 } else {
-                    saveManager.setActiveSaveSlot(fallbackSlot);
+                    saveManager.setActiveSaveSlot(gameLine, fallbackSlot);
                 }
                 saveManager.clearGameSnapshot();
             } else {
@@ -673,9 +683,16 @@ public class SaveGameView extends StackPane {
         
         private boolean loadSaveData() {
             // Используем новый метод из SaveManager
-            com.arcadeblocks.utils.SaveManager.SaveInfo saveInfo = saveManager.getSaveInfo(slotNumber);
+            com.arcadeblocks.utils.SaveManager.SaveInfo saveInfo = saveManager.getSaveInfo(gameLine, slotNumber);
             
             if (saveInfo != null) {
+                // Если слот дошел до конечного уровня линии, считаем его завершенным (failsafe)
+                boolean completed = saveInfo.gameCompleted
+                    || (gameLine != null && saveInfo.level >= gameLine.getEndLevel());
+                if (completed && !saveInfo.gameCompleted) {
+                    // Persist completion flag to keep UI consistent across sessions
+                    saveManager.setGameCompletedForSlot(gameLine, slotNumber);
+                }
                 this.saveData = new SaveData(
                     saveInfo.name,
                     saveInfo.lastPlayTime,
@@ -684,7 +701,7 @@ public class SaveGameView extends StackPane {
                     saveInfo.score,
                     saveInfo.difficulty,
                     saveInfo.playerName,
-                    saveInfo.gameCompleted  // Добавляем флаг завершения игры
+                    completed  // Добавляем флаг завершения игры
                 );
                 return true;
             }
@@ -694,7 +711,10 @@ public class SaveGameView extends StackPane {
         
         private void createUI() {
             container = new HBox(20);
-            container.setPrefSize(1000, 100);
+            container.setPrefSize(1200, Region.USE_COMPUTED_SIZE);
+            container.setMinWidth(1100);
+            container.setMaxWidth(1200);
+            container.setMinHeight(100);
 
 			// Клип, чтобы содержимое (в т.ч. свечение/скейл лейбла) не выходило за границы контейнера
 			Rectangle clip = new Rectangle();
@@ -717,6 +737,9 @@ public class SaveGameView extends StackPane {
                     infoLabel = createGameCompletedLabel();
                     infoLabel.setMaxWidth(Double.MAX_VALUE);
                     HBox.setHgrow(infoLabel, javafx.scene.layout.Priority.ALWAYS);
+                    var textWidth = container.widthProperty().subtract(360);
+                    infoLabel.maxWidthProperty().bind(textWidth);
+                    infoLabel.prefWidthProperty().bind(textWidth);
                     
                     // Кнопки Play и Delete становятся неактивными
                     loadButton = createLoadButton();
@@ -732,6 +755,9 @@ public class SaveGameView extends StackPane {
                     infoLabel = createSaveInfoLabel();
                     infoLabel.setMaxWidth(Double.MAX_VALUE);
                     HBox.setHgrow(infoLabel, javafx.scene.layout.Priority.ALWAYS);
+                    var textWidth = container.widthProperty().subtract(360);
+                    infoLabel.maxWidthProperty().bind(textWidth);
+                    infoLabel.prefWidthProperty().bind(textWidth);
                     container.getChildren().addAll(loadButton, infoLabel, deleteButton);
                 }
             } else {
@@ -764,7 +790,8 @@ public class SaveGameView extends StackPane {
         private Button createLoadButton() {
             Button button = new Button();
             localizationManager.bind(button, "savegame.button.play");
-            button.setPrefSize(120, 50);
+            button.setPrefSize(150, 50);
+            button.setMinWidth(140);
             button.setFont(Font.font("Orbitron", FontWeight.BOLD, 16));
             button.setTextFill(Color.WHITE);
             
@@ -828,6 +855,7 @@ public class SaveGameView extends StackPane {
             Label label = new Label();
             label.setFont(Font.font("Orbitron", 14));
             label.setTextFill(Color.web(GameConfig.NEON_CYAN));
+            label.setTextAlignment(TextAlignment.LEFT);
             
             // Создаем динамический биндинг для обновления при смене языка
             SaveData data = saveData;
@@ -835,7 +863,7 @@ public class SaveGameView extends StackPane {
                 // Строим локализованную строку с использованием format для параметров
                 StringBuilder info = new StringBuilder();
                 info.append(data.name).append("\n");
-                info.append(localizationManager.get("savegame.info.last_play")).append(data.lastPlayTime).append("\n");
+                info.append(localizationManager.get("savegame.info.last_play")).append("\n").append(data.lastPlayTime).append("\n");
                 info.append(localizationManager.get("savegame.info.level")).append(data.level).append(" | ");
                 info.append(localizationManager.get("savegame.info.lives")).append(data.lives).append(" | ");
                 info.append(localizationManager.get("savegame.info.score")).append(data.score);
@@ -851,7 +879,8 @@ public class SaveGameView extends StackPane {
             }, localizationManager.localeProperty()));
             
             label.setWrapText(true);
-            label.setMaxWidth(720);
+            label.setMaxWidth(1040);
+            label.setPrefWidth(1020);
             // Клип по границам лейбла, чтобы свечение/масштаб не выходили за контейнер
             Rectangle labelClip = new Rectangle();
             labelClip.widthProperty().bind(label.widthProperty());
@@ -865,17 +894,24 @@ public class SaveGameView extends StackPane {
             Label label = new Label();
             label.setFont(Font.font("Orbitron", FontWeight.NORMAL, 14)); // Обычный шрифт вместо жирного
             label.setTextFill(Color.web(GameConfig.NEON_GREEN));
+            label.setTextAlignment(TextAlignment.LEFT);
             
             // Создаем динамический биндинг для обновления при смене языка
             SaveData data = saveData;
             label.textProperty().bind(javafx.beans.binding.Bindings.createStringBinding(() -> {
+                boolean isBonusLine = gameLine != null && gameLine != GameLine.ARCADE_BLOCKS;
                 StringBuilder info = new StringBuilder();
                 info.append(data.name).append("\n");
-                info.append(localizationManager.get("savegame.game_completed")).append("\n");
-                info.append(localizationManager.get("savegame.info.last_play")).append(data.lastPlayTime).append("\n");
-                info.append(localizationManager.get("savegame.info.score")).append(data.score);
+                if (isBonusLine) {
+                    info.append(localizationManager.get("savegame.game_line_completed"));
+                } else {
+                    info.append(localizationManager.get("savegame.game_completed"));
+                }
+                info.append("\n\n");
+                info.append(localizationManager.get("savegame.info.last_play")).append("\n").append(data.lastPlayTime).append("\n");
+                info.append(localizationManager.get("savegame.info.score")).append(data.score).append("\n");
                 if (data.difficulty != null) {
-                    info.append(" | ").append(localizationManager.get("savegame.info.difficulty")).append(data.difficulty.getDisplayName());
+                    info.append(localizationManager.get("savegame.info.difficulty")).append(data.difficulty.getDisplayName()).append("\n");
                 }
                 String playerDisplayName = (data.playerName != null && !data.playerName.isBlank())
                     ? data.playerName
@@ -886,7 +922,8 @@ public class SaveGameView extends StackPane {
             }, localizationManager.localeProperty()));
             
             label.setWrapText(true);
-            label.setMaxWidth(720);
+            label.setMaxWidth(1040);
+            label.setPrefWidth(1020);
             // Минимальный glow эффект для читаемости
             label.setStyle("-fx-effect: dropshadow(gaussian, " + GameConfig.NEON_GREEN + ", 2, 0.15, 0, 0);");
             
@@ -948,7 +985,8 @@ public class SaveGameView extends StackPane {
         private Button createDeleteButton() {
             Button button = new Button();
             localizationManager.bind(button, "savegame.delete", () -> new Object[]{slotNumber});
-            button.setPrefSize(180, 46);
+            button.setPrefSize(180, 50);
+            button.setMinWidth(170);
             button.setFont(Font.font("Orbitron", FontWeight.BOLD, 14));
             button.setTextFill(Color.WHITE);
 
@@ -1043,13 +1081,14 @@ public class SaveGameView extends StackPane {
         public void loadSave() {
             if (hasSave && saveData != null) {
                 // Устанавливаем этот слот как активный для автоматического сохранения
-                saveManager.setActiveSaveSlot(slotNumber);
+                saveManager.setCurrentGameLine(gameLine);
+                saveManager.setActiveSaveSlot(gameLine, slotNumber);
                 
                 // Запоминаем изначально выбранный слот для создания нового сохранения после Game Over
                 app.setOriginalSaveSlot(slotNumber);
                 
                 // Используем новый метод загрузки из SaveManager
-                if (saveManager.loadFromSlot(slotNumber)) {
+                if (saveManager.loadFromSlot(gameLine, slotNumber)) {
                     // КРИТИЧНО: Сохраняем ссылку на app ПЕРЕД cleanup(), так как cleanup() обнуляет app
                     ArcadeBlocksApp appRef = app;
                     int levelToStart = saveData.level;
@@ -1071,12 +1110,13 @@ public class SaveGameView extends StackPane {
         }
         
         private void createNewSave() {
+            saveManager.setCurrentGameLine(gameLine);
             // Применяем выбранную пользователем сложность к новому слоту
             com.arcadeblocks.config.DifficultyLevel selectedDifficulty = saveManager.getDifficulty();
             saveManager.setGameDifficulty(selectedDifficulty);
 
             // Полностью очищаем данные слота перед созданием нового сохранения
-            saveManager.clearSaveSlot(slotNumber);
+            saveManager.clearSaveSlot(gameLine, slotNumber);
             saveManager.awaitPendingWrites();
 
             // Сбрасываем прогресс и начинаем новую игру
@@ -1084,13 +1124,18 @@ public class SaveGameView extends StackPane {
             saveManager.awaitPendingWrites();
 
             // Устанавливаем этот слот как активный для автоматического сохранения
-            saveManager.setActiveSaveSlot(slotNumber);
+            saveManager.setActiveSaveSlot(gameLine, slotNumber);
+
+            // Обновляем текущие базовые значения для выбранной линии
+            saveManager.setCurrentLevel(gameLine.getStartLevel());
+            saveManager.setLives(selectedDifficulty.getLives());
+            saveManager.setScore(0);
             
             // Запоминаем изначально выбранный слот для создания нового сохранения после Game Over
             app.setOriginalSaveSlot(slotNumber);
             
             // Автоматически сохраняем в этот слот
-            saveManager.autoSaveToSlot(slotNumber);
+            saveManager.autoSaveToSlot(gameLine, slotNumber);
             saveManager.awaitPendingWrites();
             
             // КРИТИЧНО: Сохраняем ссылку на app ПЕРЕД cleanup(), так как cleanup() обнуляет app
@@ -1102,7 +1147,8 @@ public class SaveGameView extends StackPane {
             if (appRef != null) {
                 appRef.clearUINodesSafely();
                 // Используем сохраненную ссылку, так как app уже null после cleanup()
-                appRef.startLevel(1, true);
+                // Запускаем первый уровень выбранной игровой линии
+                appRef.startLevel(gameLine.getStartLevel(), true);
             }
         }
         

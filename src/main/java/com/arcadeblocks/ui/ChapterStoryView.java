@@ -31,6 +31,7 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
@@ -66,6 +67,8 @@ public class ChapterStoryView extends StackPane implements SupportsCleanup {
     private HBox contentContainer;
     private Rectangle imageBackdrop;
     private ImageView storyImageView;
+    private ScrollPane textScrollPane;
+    private VBox textColumn;
     private Text hintText;
     private final List<Text> paragraphTexts = new ArrayList<>();
 
@@ -161,19 +164,24 @@ public class ChapterStoryView extends StackPane implements SupportsCleanup {
 
         imageWrapper.getChildren().addAll(imageBackdrop, storyImageView);
 
-        VBox textColumn = new VBox(18);
+        textColumn = new VBox(18);
         textColumn.setAlignment(Pos.TOP_LEFT);
         textColumn.setFillWidth(true);
 
         String prefix = storyData != null ? storyData.localizationPrefix() : "";
 
-        // Получаем цвет главы из LevelConfig
-        Color chapterColor = Color.web("#5DF2FF"); // Цвет по умолчанию
+        // Получаем цвет главы: сначала LevelConfig, затем BonusLevelConfig (для бонусных уровней)
+        Color chapterColor = Color.web("#DC143C"); // Neon Crimson по умолчанию для бонусов
         if (storyData != null) {
-            com.arcadeblocks.config.LevelConfig.LevelChapter chapter = 
+            com.arcadeblocks.config.LevelConfig.LevelChapter chapter =
                 com.arcadeblocks.config.LevelConfig.getChapter(storyData.firstLevelNumber());
-            if (chapter != null) {
+            if (chapter != null && chapter.getAccentColorHex() != null) {
                 chapterColor = Color.web(chapter.getAccentColorHex());
+            } else {
+                var bonusChapter = com.arcadeblocks.config.BonusLevelConfig.getChapter(storyData.firstLevelNumber());
+                if (bonusChapter != null && bonusChapter.getAccentColorHex() != null) {
+                    chapterColor = Color.web(bonusChapter.getAccentColorHex());
+                }
             }
         }
 
@@ -226,7 +234,22 @@ public class ChapterStoryView extends StackPane implements SupportsCleanup {
         hintText.setWrappingWidth(540);
         textColumn.getChildren().add(hintText);
 
-        contentContainer.getChildren().addAll(imageWrapper, textColumn);
+        textScrollPane = new ScrollPane(textColumn);
+        textScrollPane.setFitToWidth(true);
+        textScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        textScrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        textScrollPane.setPannable(true);
+        textScrollPane.setStyle(
+            "-fx-background-color: rgba(10,10,25,0.55);" +
+            "-fx-background: rgba(10,10,25,0.55);" +
+            "-fx-border-color: rgba(93, 242, 255, 0.25);" +
+            "-fx-border-radius: 16;" +
+            "-fx-background-radius: 16;" +
+            "-fx-padding: 12;"
+        );
+        textScrollPane.setPrefViewportWidth(620);
+
+        contentContainer.getChildren().addAll(imageWrapper, textScrollPane);
 
         if (backgroundNode != null) {
             getChildren().add(backgroundNode);
@@ -527,10 +550,18 @@ public class ChapterStoryView extends StackPane implements SupportsCleanup {
         }
 
         if (contentContainer != null) {
-            double targetWidth = Math.min(1180, Math.max(780, width * 0.78));
+            double targetWidth = Math.min(1400, Math.max(920, width * 0.88));
             contentContainer.setMaxWidth(targetWidth);
             contentContainer.setPrefWidth(targetWidth);
             contentContainer.setSpacing(Math.min(64, targetWidth * 0.06));
+
+            double verticalPadding = Math.max(28, height * 0.035);
+            double horizontalPadding = Math.max(28, width * 0.035);
+            contentContainer.setPadding(new Insets(verticalPadding, horizontalPadding, verticalPadding, horizontalPadding));
+
+            double targetHeight = Math.min(height * 0.9, Math.max(520, height * 0.72));
+            contentContainer.setMaxHeight(targetHeight);
+            contentContainer.setPrefHeight(targetHeight);
         }
 
         if (storyImageView != null) {
@@ -538,16 +569,33 @@ public class ChapterStoryView extends StackPane implements SupportsCleanup {
             storyImageView.setFitWidth(imageWidth);
             if (imageBackdrop != null) {
                 imageBackdrop.setWidth(imageWidth + 120);
-                imageBackdrop.setHeight(Math.min(540, Math.max(420, height * 0.65)));
+                double backdropHeight = Math.min(620, Math.max(420, height * 0.68));
+                imageBackdrop.setHeight(backdropHeight);
+                storyImageView.setFitHeight(backdropHeight - 60);
             }
         }
 
-        double wrapWidth = Math.min(560, Math.max(420, width * 0.42));
+        double availableTextWidth = Math.min(960, Math.max(640, width * 0.78));
+        double wrapWidth = availableTextWidth;
         for (Text paragraph : paragraphTexts) {
             paragraph.setWrappingWidth(wrapWidth);
         }
         if (hintText != null) {
             hintText.setWrappingWidth(wrapWidth);
+        }
+        if (textColumn != null) {
+            textColumn.setMaxWidth(wrapWidth);
+            textColumn.setPrefWidth(wrapWidth);
+            textColumn.setMinWidth(wrapWidth);
+        }
+
+        if (textScrollPane != null) {
+            double scrollMaxHeight = Math.min(height * 0.8, Math.max(420, height * 0.65));
+            textScrollPane.setPrefHeight(scrollMaxHeight);
+            textScrollPane.setMaxHeight(scrollMaxHeight);
+            textScrollPane.setPrefViewportWidth(availableTextWidth + 24);
+            textScrollPane.setMaxWidth(availableTextWidth + 24);
+            textScrollPane.setMinViewportWidth(availableTextWidth + 12);
         }
     }
 

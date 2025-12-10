@@ -392,6 +392,10 @@ public class DebugBonusesView extends VBox {
             {"EXPLOSION_BALLS_ENABLED", "debug.bonuses.bonus.explosive_balls"},
             {"BONUS_BALL_ENABLED", "debug.bonuses.bonus.extra_ball"},
             {"BONUS_SCORE_ENABLED", "debug.bonuses.bonus.extra_points"},
+            {"BONUS_SCORE_200_ENABLED", "debug.bonuses.bonus.extra_points_200"},
+            {"BONUS_SCORE_500_ENABLED", "debug.bonuses.bonus.extra_points_500"},
+            {"ADD_FIVE_SECONDS_ENABLED", "debug.bonuses.bonus.add_five_seconds"},
+            {"CALL_BALL_ENABLED", "debug.bonuses.bonus.call_ball"},
             {"EXTRA_LIFE_ENABLED", "debug.bonuses.bonus.extra_life"},
             {"BONUS_WALL_ENABLED", "debug.bonuses.bonus.shield_barrier"},
             {"BONUS_MAGNET_ENABLED", "debug.bonuses.bonus.bonus_magnet"},
@@ -490,6 +494,14 @@ public class DebugBonusesView extends VBox {
             app.getAudioManager().playSFXByName("settings_change");
             resetToDefaults();
         });
+
+        Button clearButton = createButton("debug.bonuses.button.clear", GameConfig.NEON_PINK, () -> {
+            if (app == null) {
+                return;
+            }
+            app.getAudioManager().playSFXByName("settings_change");
+            clearAllBonusesSelections();
+        });
         
         Button closeButton = createButton("debug.bonuses.button.close", GameConfig.NEON_CYAN, () -> {
             // КРИТИЧНО: Проверяем app на null перед использованием
@@ -504,10 +516,10 @@ public class DebugBonusesView extends VBox {
             });
         });
         
-        buttonBox.getChildren().addAll(applyButton, resetButton, closeButton);
+        buttonBox.getChildren().addAll(applyButton, resetButton, clearButton, closeButton);
         
         // Сохраняем ссылки на кнопки для навигации
-        menuButtons = new Button[]{applyButton, resetButton, closeButton};
+        menuButtons = new Button[]{applyButton, resetButton, clearButton, closeButton};
         
         // Устанавливаем визуальное выделение первой кнопки
         updateButtonHighlight();
@@ -720,6 +732,10 @@ public class DebugBonusesView extends VBox {
         originalStates.put("WEAK_BALLS_ENABLED", BonusConfig.getBonusEnabled("WEAK_BALLS_ENABLED"));
         originalStates.put("BONUS_BALL_ENABLED", BonusConfig.getBonusEnabled("BONUS_BALL_ENABLED"));
         originalStates.put("BONUS_SCORE_ENABLED", BonusConfig.getBonusEnabled("BONUS_SCORE_ENABLED"));
+        originalStates.put("BONUS_SCORE_200_ENABLED", BonusConfig.getBonusEnabled("BONUS_SCORE_200_ENABLED"));
+        originalStates.put("BONUS_SCORE_500_ENABLED", BonusConfig.getBonusEnabled("BONUS_SCORE_500_ENABLED"));
+        originalStates.put("ADD_FIVE_SECONDS_ENABLED", BonusConfig.getBonusEnabled("ADD_FIVE_SECONDS_ENABLED"));
+        originalStates.put("CALL_BALL_ENABLED", BonusConfig.getBonusEnabled("CALL_BALL_ENABLED"));
         originalStates.put("EXTRA_LIFE_ENABLED", BonusConfig.getBonusEnabled("EXTRA_LIFE_ENABLED"));
         originalStates.put("BONUS_WALL_ENABLED", BonusConfig.getBonusEnabled("BONUS_WALL_ENABLED"));
         originalStates.put("BONUS_MAGNET_ENABLED", BonusConfig.getBonusEnabled("BONUS_MAGNET_ENABLED"));
@@ -804,6 +820,36 @@ public class DebugBonusesView extends VBox {
         }
         
         // Сохраняем изменения в базу данных
+        if (app.getSaveManager() != null) {
+            app.getSaveManager().saveDebugSettingsFromBonusConfig();
+        }
+    }
+
+    private void clearAllBonusesSelections() {
+        if (bonusCheckBoxes == null || app == null) {
+            return;
+        }
+
+        isLoadingStates = true;
+        for (Map.Entry<String, CheckBox> entry : bonusCheckBoxes.entrySet()) {
+            String fieldName = entry.getKey();
+            CheckBox checkBox = entry.getValue();
+
+            // Пропускаем тестовые переключатели
+            if (fieldName.equals("TESTING_MODE") ||
+                fieldName.equals("POSITIVE_BONUSES_ONLY") ||
+                fieldName.equals("NEGATIVE_BONUSES_ONLY") ||
+                fieldName.equals("DISABLE_ALL_BONUSES")) {
+                continue;
+            }
+
+            if (checkBox != null) {
+                checkBox.setSelected(false);
+                BonusConfig.setBonusEnabled(fieldName, false);
+            }
+        }
+        isLoadingStates = false;
+
         if (app.getSaveManager() != null) {
             app.getSaveManager().saveDebugSettingsFromBonusConfig();
         }

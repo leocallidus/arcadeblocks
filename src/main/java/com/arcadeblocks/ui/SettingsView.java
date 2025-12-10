@@ -9,6 +9,7 @@ import com.arcadeblocks.localization.LocalizationManager;
 import com.arcadeblocks.config.GameConfig;
 import com.almasb.fxgl.dsl.FXGL;
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
@@ -58,6 +59,7 @@ public class SettingsView extends VBox implements SupportsCleanup {
     private Button launchButton;
     private Button callBallButton;
     private Button turboPaddleButton;
+    private Button turboBallButton;
     private Button pauseButton;
     private Button plasmaWeaponButton;
     
@@ -68,17 +70,21 @@ public class SettingsView extends VBox implements SupportsCleanup {
     // Игровые настройки
     private TextField playerNameField;
     private Slider paddleSpeedSlider;
+    private Slider turboSpeedSlider;
+    private ComboBox<LanguageOption> languageComboBox;
     private ComboBox<WindowModeOption> windowModeComboBox;
     private ComboBox<com.arcadeblocks.config.Resolution> resolutionComboBox;
     private ComboBox<com.arcadeblocks.config.DifficultyLevel> difficultyComboBox;
-    private CheckBox callBallSoundCheckBox;
+    private CheckBox levelBackgroundCheckBox;
     private CheckBox vsyncCheckBox;
     
     // Listeners для очистки (предотвращение утечек памяти)
-    private javafx.beans.value.ChangeListener<Boolean> callBallSoundListener;
+    private javafx.beans.value.ChangeListener<LanguageOption> languageListener;
+    private javafx.beans.value.ChangeListener<Boolean> levelBackgroundListener;
     private javafx.beans.value.ChangeListener<Boolean> vsyncListener;
     private javafx.beans.value.ChangeListener<String> playerNameListener;
     private javafx.beans.value.ChangeListener<Number> paddleSpeedListener;
+    private javafx.beans.value.ChangeListener<Number> turboSpeedListener;
     private javafx.beans.value.ChangeListener<WindowModeOption> windowModeListener;
     private javafx.beans.value.ChangeListener<WindowModeOption> windowModeListener2; // второй listener
     private javafx.beans.value.ChangeListener<com.arcadeblocks.config.Resolution> resolutionListener;
@@ -86,6 +92,7 @@ public class SettingsView extends VBox implements SupportsCleanup {
     // Throttling для слайдеров (предотвращение частых сохранений)
     private javafx.animation.PauseTransition volumeThrottle;
     private javafx.animation.PauseTransition paddleSpeedThrottle;
+    private javafx.animation.PauseTransition turboSpeedThrottle;
     private javafx.beans.value.ChangeListener<com.arcadeblocks.config.DifficultyLevel> difficultyListener;
     // Listeners для слайдеров громкости (критично для предотвращения утечек)
     private javafx.beans.value.ChangeListener<Number> masterVolumeListener;
@@ -115,6 +122,7 @@ public class SettingsView extends VBox implements SupportsCleanup {
         // Инициализируем throttling для слайдеров (задержка 100мс)
         volumeThrottle = new javafx.animation.PauseTransition(javafx.util.Duration.millis(100));
         paddleSpeedThrottle = new javafx.animation.PauseTransition(javafx.util.Duration.millis(100));
+        turboSpeedThrottle = new javafx.animation.PauseTransition(javafx.util.Duration.millis(100));
         
         initializeUI();
         
@@ -188,6 +196,10 @@ public class SettingsView extends VBox implements SupportsCleanup {
             paddleSpeedThrottle.stop();
             paddleSpeedThrottle = null;
         }
+        if (turboSpeedThrottle != null) {
+            turboSpeedThrottle.stop();
+            turboSpeedThrottle = null;
+        }
         
         // Очищаем обработчик клавиш
         this.setOnKeyPressed(null);
@@ -202,18 +214,19 @@ public class SettingsView extends VBox implements SupportsCleanup {
         if (launchButton != null) launchButton.setOnAction(null);
         if (callBallButton != null) callBallButton.setOnAction(null);
         if (turboPaddleButton != null) turboPaddleButton.setOnAction(null);
+        if (turboBallButton != null) turboBallButton.setOnAction(null);
         if (pauseButton != null) pauseButton.setOnAction(null);
         if (plasmaWeaponButton != null) plasmaWeaponButton.setOnAction(null);
         
         // КРИТИЧНО: Удаляем listeners с CheckBox'ов
         // НЕ вызываем unbind() - dispose() на bindings уже освободил все ресурсы
-        if (callBallSoundCheckBox != null) {
+        if (levelBackgroundCheckBox != null) {
             // КРИТИЧНО: Очищаем tooltip перед удалением listener'а
-            callBallSoundCheckBox.setTooltip(null);
+            levelBackgroundCheckBox.setTooltip(null);
             // КРИТИЧНО: Удаляем listener с selectedProperty
-            if (callBallSoundListener != null) {
-                callBallSoundCheckBox.selectedProperty().removeListener(callBallSoundListener);
-                callBallSoundListener = null;
+            if (levelBackgroundListener != null) {
+                levelBackgroundCheckBox.selectedProperty().removeListener(levelBackgroundListener);
+                levelBackgroundListener = null;
             }
         }
         if (vsyncCheckBox != null) {
@@ -246,6 +259,19 @@ public class SettingsView extends VBox implements SupportsCleanup {
                 paddleSpeedSlider.setUserData(null);
             }
         }
+        if (turboSpeedSlider != null) {
+            // Удаляем основной listener
+            if (turboSpeedListener != null) {
+                turboSpeedSlider.valueProperty().removeListener(turboSpeedListener);
+                turboSpeedListener = null;
+            }
+            // КРИТИЧНО: Удаляем listener для обновления label
+            Object labelListener = turboSpeedSlider.getUserData();
+            if (labelListener instanceof javafx.beans.value.ChangeListener) {
+                turboSpeedSlider.valueProperty().removeListener((javafx.beans.value.ChangeListener<Number>) labelListener);
+                turboSpeedSlider.setUserData(null);
+            }
+        }
         // КРИТИЧНО: Удаляем listeners со слайдеров громкости
         if (masterVolumeSlider != null && masterVolumeListener != null) {
             masterVolumeSlider.valueProperty().removeListener(masterVolumeListener);
@@ -264,6 +290,16 @@ public class SettingsView extends VBox implements SupportsCleanup {
         }
         
         // КРИТИЧНО: Удаляем listeners с ComboBox'ов
+        if (languageComboBox != null) {
+            if (languageListener != null) {
+                languageComboBox.valueProperty().removeListener(languageListener);
+                languageListener = null;
+            }
+            languageComboBox.setCellFactory(null);
+            languageComboBox.setButtonCell(null);
+            languageComboBox.getItems().clear();
+        }
+
         if (windowModeComboBox != null) {
             if (windowModeListener != null) {
                 windowModeComboBox.valueProperty().removeListener(windowModeListener);
@@ -349,6 +385,7 @@ public class SettingsView extends VBox implements SupportsCleanup {
         launchButton = null;
         callBallButton = null;
         turboPaddleButton = null;
+        turboBallButton = null;
         pauseButton = null;
         plasmaWeaponButton = null;
         waitingForKeyButton = null;
@@ -357,7 +394,7 @@ public class SettingsView extends VBox implements SupportsCleanup {
         windowModeComboBox = null;
         resolutionComboBox = null;
         difficultyComboBox = null;
-        callBallSoundCheckBox = null;
+        /* callBallSoundCheckBox = null; */
         vsyncCheckBox = null;
     }
     
@@ -515,52 +552,8 @@ public class SettingsView extends VBox implements SupportsCleanup {
         VBox sfxVolumeBox = createAudioSliderBox("settings.audio.sfx", 0, 100, 80, "sfx_volume", false);
         sfxVolumeSlider = (Slider) sfxVolumeBox.getChildren().get(1);
         
-        callBallSoundCheckBox = new CheckBox();
-        localizationManager.bind(callBallSoundCheckBox, "settings.audio.call_ball_sound");
-        callBallSoundCheckBox.getStyleClass().add("debug-checkbox");
-        callBallSoundCheckBox.setFont(Font.font("Orbitron", FontWeight.BOLD, 14));
-        callBallSoundCheckBox.setTextFill(Color.web("#E0E0E0"));
-        callBallSoundCheckBox.setAlignment(Pos.CENTER);
-        // Сохраняем listener для последующей очистки
-        callBallSoundListener = (obs, oldVal, newVal) -> {
-            long startTime = System.nanoTime();
-            // System.out.println("[PERF] callBallSoundListener START");
-            
-            // КРИТИЧНО: Проверяем, что SettingsView еще не очищен
-            if (isCleanedUp || app == null || changeTracker == null || isLoading) {
-                return;
-            }
-            // КРИТИЧНО: Игнорируем если значение не изменилось (защита от множественных вызовов)
-            if (Objects.equals(oldVal, newVal)) {
-                // System.out.println("[PERF] callBallSoundListener SKIP (same value)");
-                return;
-            }
-            try {
-                long t1 = System.nanoTime();
-                updateChangeTracker("call_ball_sound_enabled", newVal);
-                // System.out.println("[PERF] updateChangeTracker took: " + (System.nanoTime() - t1) / 1_000_000.0 + " ms");
-                
-                // Звук проигрываем асинхронно, чтобы не блокировать UI
-                javafx.application.Platform.runLater(() -> {
-                    if (!isCleanedUp && app != null) {
-                        playSettingsToggleSound();
-                    }
-                });
-                
-                // В паузе не сохраняем сразу - сохраним все при выходе
-                
-                // System.out.println("[PERF] callBallSoundListener TOTAL: " + (System.nanoTime() - startTime) / 1_000_000.0 + " ms");
-            } catch (Exception e) {
-                // Игнорируем ошибки, если SettingsView уже очищен
-                // System.err.println("[SettingsView] Error in callBallSoundListener: " + e.getMessage());
-                // e.printStackTrace();
-            }
-        };
-        callBallSoundCheckBox.selectedProperty().addListener(callBallSoundListener);
-        callBallSoundCheckBox.setTooltip(createLocalizedTooltip("settings.audio.call_ball_sound.tooltip"));
-        
         section.getChildren().addAll(sectionTitle, masterVolumeBox, 
-                                   musicVolumeBox, sfxVolumeBox, callBallSoundCheckBox);
+                                   musicVolumeBox, sfxVolumeBox);
         
         return section;
     }
@@ -596,6 +589,10 @@ public class SettingsView extends VBox implements SupportsCleanup {
         // Турбо-ракетка
         VBox turboPaddleBox = createKeyBindingBox("settings.controls.turbo");
         turboPaddleButton = (Button) turboPaddleBox.getChildren().get(1);
+
+        // Турбо-мяч
+        VBox turboBallBox = createKeyBindingBox("settings.controls.turbo_ball");
+        turboBallButton = (Button) turboBallBox.getChildren().get(1);
         
         // Плазменное оружие
         VBox plasmaBox = createKeyBindingBox("settings.controls.plasma");
@@ -606,7 +603,7 @@ public class SettingsView extends VBox implements SupportsCleanup {
         pauseButton = (Button) pauseBox.getChildren().get(1);
         
         section.getChildren().addAll(sectionTitle, moveLeftBox, moveRightBox, 
-                           launchBox, callBallBox, turboPaddleBox, plasmaBox, pauseBox);
+                           launchBox, callBallBox, turboPaddleBox, turboBallBox, plasmaBox, pauseBox);
         
         return section;
     }
@@ -622,6 +619,34 @@ public class SettingsView extends VBox implements SupportsCleanup {
         bindText(sectionTitle, "settings.section.game");
         sectionTitle.setFont(Font.font("Orbitron", FontWeight.BOLD, 18));  // Немного уменьшили шрифт
         sectionTitle.setTextFill(Color.web(GameConfig.NEON_GREEN));
+        
+        // Язык игры
+        VBox languageBox = new VBox(8);
+        languageBox.setAlignment(Pos.CENTER);
+        Label languageLabel = createLabel("menu.language");
+        languageComboBox = new ComboBox<>();
+        languageComboBox.getItems().addAll(LanguageOption.values());
+        languageComboBox.setValue(LanguageOption.ENGLISH); // Default
+        languageComboBox.setPrefWidth(180);
+        languageComboBox.setMinWidth(180);
+        languageComboBox.setMaxWidth(180);
+        languageComboBox.getStyleClass().add("combo-box");
+        languageComboBox.setCellFactory(listView -> createLanguageCell());
+        languageComboBox.setButtonCell(createLanguageCell());
+        
+        languageListener = (obs, oldVal, newVal) -> {
+            if (isCleanedUp || app == null || changeTracker == null) return;
+            if (newVal != null && !isLoading) {
+                playSettingsToggleSound();
+                updateChangeTracker("language", newVal.getCode());
+                // Применяем язык немедленно
+                app.getSaveManager().setLanguage(newVal.getCode());
+                localizationManager.setLanguage(newVal.getCode());
+                saveSettings();
+            }
+        };
+        languageComboBox.valueProperty().addListener(languageListener);
+        languageBox.getChildren().addAll(languageLabel, languageComboBox);
         
         // Имя игрока
         VBox playerNameBox = createGameTextFieldBox("settings.game.player_name", "player.default");
@@ -675,6 +700,33 @@ public class SettingsView extends VBox implements SupportsCleanup {
         };
         paddleSpeedSlider.valueProperty().addListener(paddleSpeedListener);
         
+        // Скорость турбо-режима
+        VBox turboSpeedBox = createGameSliderBox("settings.game.turbo_speed", 100, 300, 250); // 1.0x - 3.0x, default 2.5x
+        turboSpeedSlider = (Slider) turboSpeedBox.getChildren().get(1);
+        // Добавляем обработчик сохранения для скорости турбо
+        turboSpeedListener = (obs, oldVal, newVal) -> {
+            if (isCleanedUp || app == null || changeTracker == null) {
+                return;
+            }
+            double speed = newVal.doubleValue() / 100.0;
+            updateChangeTracker("turbo_mode_speed", speed);
+            if (!isLoading) {
+                app.getSaveManager().setTurboModeSpeed(speed);
+                app.updateTurboSpeed();
+                if (turboSpeedThrottle != null) {
+                    turboSpeedThrottle.stop();
+                    turboSpeedThrottle.setOnFinished(evt -> {
+                        if (!isCleanedUp && !isLoading) {
+                            saveSettings();
+                        }
+                    });
+                    turboSpeedThrottle.playFromStart();
+                } else {
+                    saveSettings();
+                }
+            }
+        };
+        turboSpeedSlider.valueProperty().addListener(turboSpeedListener);
         
         // Режим окна
         VBox windowModeBox = new VBox(8);  // Вертикальное расположение
@@ -802,6 +854,44 @@ public class SettingsView extends VBox implements SupportsCleanup {
         }
         difficultyBox.getChildren().addAll(difficultyLabel, difficultyComboBox);
 
+        levelBackgroundCheckBox = new CheckBox();
+        localizationManager.bind(levelBackgroundCheckBox, "settings.game.level_background");
+        levelBackgroundCheckBox.getStyleClass().add("debug-checkbox");
+        levelBackgroundCheckBox.setFont(Font.font("Orbitron", FontWeight.BOLD, 14));
+        levelBackgroundCheckBox.setTextFill(Color.web("#E0E0E0"));
+        levelBackgroundCheckBox.setAlignment(Pos.CENTER);
+        // Сохраняем listener для последующей очистки
+        levelBackgroundListener = (obs, oldVal, newVal) -> {
+            // КРИТИЧНО: Проверяем, что SettingsView еще не очищен
+            if (isCleanedUp || app == null || changeTracker == null || isLoading) {
+                return;
+            }
+            // КРИТИЧНО: Игнорируем если значение не изменилось
+            if (Objects.equals(oldVal, newVal)) {
+                return;
+            }
+            try {
+                updateChangeTracker("level_background_enabled", newVal);
+                // Звук проигрываем асинхронно
+                javafx.application.Platform.runLater(() -> {
+                    if (!isCleanedUp && app != null) {
+                        playSettingsToggleSound();
+                    }
+                });
+                
+                // Сохраняем настройку, чтобы она применилась немедленно (если поддерживается app)
+                app.getSaveManager().setLevelBackgroundEnabled(newVal);
+                app.refreshLevelBackground();
+                
+                // Если мы в игре, возможно, нужно обновить фон (зависит от реализации GameplayUIView)
+                // Но пока просто сохраняем
+            } catch (Exception e) {
+                // Игнорируем ошибки, если SettingsView уже очищен
+            }
+        };
+        levelBackgroundCheckBox.selectedProperty().addListener(levelBackgroundListener);
+        levelBackgroundCheckBox.setTooltip(createLocalizedTooltip("settings.game.level_background.tooltip"));
+
         vsyncCheckBox = new CheckBox();
         localizationManager.bind(vsyncCheckBox, "settings.game.vsync");
         vsyncCheckBox.getStyleClass().add("debug-checkbox");
@@ -839,8 +929,8 @@ public class SettingsView extends VBox implements SupportsCleanup {
         vsyncCheckBox.selectedProperty().addListener(vsyncListener);
         vsyncCheckBox.setTooltip(createLocalizedTooltip("settings.game.vsync.tooltip"));
         
-        section.getChildren().addAll(sectionTitle, playerNameBox, paddleSpeedBox, 
-                                   windowModeBox, resolutionBox, difficultyBox, vsyncCheckBox);
+        section.getChildren().addAll(sectionTitle, languageBox, playerNameBox, paddleSpeedBox, turboSpeedBox, 
+                                   windowModeBox, resolutionBox, difficultyBox, levelBackgroundCheckBox, vsyncCheckBox);
         
         return section;
     }
@@ -887,6 +977,9 @@ public class SettingsView extends VBox implements SupportsCleanup {
         slider.getStyleClass().add("slider"); // Применяем CSS стиль
         
         Label valueLabel = new Label(String.valueOf((int) defaultValue));
+        if ("settings.game.turbo_speed".equals(labelText)) {
+            valueLabel.setText(String.format("%.1fx", defaultValue / 100.0));
+        }
         valueLabel.setFont(Font.font("Orbitron", 12));
         valueLabel.setTextFill(Color.web("#E0E0E0"));
         valueLabel.setAlignment(Pos.CENTER);
@@ -894,7 +987,11 @@ public class SettingsView extends VBox implements SupportsCleanup {
         // Обновление значения при изменении слайдера (без автоматического сохранения)
         // КРИТИЧНО: Сохраняем listener в userData слайдера для последующей очистки
         javafx.beans.value.ChangeListener<Number> labelUpdateListener = (obs, oldVal, newVal) -> {
-            valueLabel.setText(String.valueOf((int) newVal.doubleValue()));
+            if ("settings.game.turbo_speed".equals(labelText)) {
+                valueLabel.setText(String.format("%.1fx", newVal.doubleValue() / 100.0));
+            } else {
+                valueLabel.setText(String.valueOf((int) newVal.doubleValue()));
+            }
         };
         slider.valueProperty().addListener(labelUpdateListener);
         // Сохраняем listener в userData для последующей очистки
@@ -1169,6 +1266,21 @@ public class SettingsView extends VBox implements SupportsCleanup {
             }
         };
     }
+
+    private ListCell<LanguageOption> createLanguageCell() {
+        return new ListCell<>() {
+            @Override
+            protected void updateItem(LanguageOption item, boolean empty) {
+                super.updateItem(item, empty);
+                textProperty().unbind();
+                if (empty || item == null) {
+                    setText(null);
+                } else {
+                    bindText(this, item.getTranslationKey());
+                }
+            }
+        };
+    }
     
     private ListCell<com.arcadeblocks.config.DifficultyLevel> createDifficultyCell() {
         return new ListCell<>() {
@@ -1232,6 +1344,36 @@ public class SettingsView extends VBox implements SupportsCleanup {
         resolutionComboBox.getItems().addAll(availableResolutions);
         resolutionComboBox.setValue(selectedResolution);
         isLoading = previousLoading;
+    }
+
+    private enum LanguageOption {
+        ENGLISH("en", "language.button.english"),
+        RUSSIAN("ru", "language.button.russian");
+
+        private final String code;
+        private final String translationKey;
+
+        LanguageOption(String code, String translationKey) {
+            this.code = code;
+            this.translationKey = translationKey;
+        }
+
+        public String getCode() {
+            return code;
+        }
+
+        public String getTranslationKey() {
+            return translationKey;
+        }
+        
+        public static LanguageOption fromCode(String code) {
+            for (LanguageOption option : values()) {
+                if (option.code.equalsIgnoreCase(code)) {
+                    return option;
+                }
+            }
+            return ENGLISH; // Default
+        }
     }
 
     private enum WindowModeOption {
@@ -1346,6 +1488,18 @@ public class SettingsView extends VBox implements SupportsCleanup {
                 event.consume();
             } else {
                 // Если не ожидаем назначение клавиши, обрабатываем навигацию
+                KeyCode leftKey = getBoundKeyCode("MOVE_LEFT");
+                KeyCode rightKey = getBoundKeyCode("MOVE_RIGHT");
+                if (leftKey != null && event.getCode() == leftKey) {
+                    navigateControlButtons(-1);
+                    event.consume();
+                    return;
+                } else if (rightKey != null && event.getCode() == rightKey) {
+                    navigateControlButtons(1);
+                    event.consume();
+                    return;
+                }
+
                 switch (event.getCode()) {
                     case ESCAPE:
                         // КРИТИЧНО: Предотвращаем повторные нажатия во время анимации закрытия
@@ -1378,7 +1532,7 @@ public class SettingsView extends VBox implements SupportsCleanup {
     private Button findConflictingButton(String keyName) {
         // Проверяем все кнопки управления на конфликт
         Button[] allButtons = {
-            moveLeftButton, moveRightButton, launchButton, callBallButton, turboPaddleButton, plasmaWeaponButton, pauseButton
+            moveLeftButton, moveRightButton, launchButton, callBallButton, turboPaddleButton, turboBallButton, plasmaWeaponButton, pauseButton
         };
         
         for (Button button : allButtons) {
@@ -1388,6 +1542,54 @@ public class SettingsView extends VBox implements SupportsCleanup {
         }
         
         return null;
+    }
+
+    private KeyCode getBoundKeyCode(String action) {
+        if (app == null || app.getSaveManager() == null || action == null) {
+            return null;
+        }
+        String keyName = app.getSaveManager().getControlKey(action);
+        if (keyName == null || keyName.isBlank()) {
+            return null;
+        }
+        try {
+            return KeyCode.valueOf(keyName.trim());
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    private void navigateControlButtons(int delta) {
+        if (delta == 0) {
+            return;
+        }
+        java.util.List<Button> controls = new java.util.ArrayList<>();
+        if (moveLeftButton != null) controls.add(moveLeftButton);
+        if (moveRightButton != null) controls.add(moveRightButton);
+        if (launchButton != null) controls.add(launchButton);
+        if (callBallButton != null) controls.add(callBallButton);
+        if (turboPaddleButton != null) controls.add(turboPaddleButton);
+        if (turboBallButton != null) controls.add(turboBallButton);
+        if (plasmaWeaponButton != null) controls.add(plasmaWeaponButton);
+        if (pauseButton != null) controls.add(pauseButton);
+        if (controls.isEmpty()) {
+            return;
+        }
+
+        int currentIndex = 0;
+        if (this.getScene() != null && this.getScene().getFocusOwner() != null) {
+            currentIndex = controls.indexOf(this.getScene().getFocusOwner());
+            if (currentIndex < 0) {
+                currentIndex = 0;
+            }
+        }
+
+        int nextIndex = Math.min(controls.size() - 1, Math.max(0, currentIndex + delta));
+        Button target = controls.get(nextIndex);
+        target.requestFocus();
+        if (app != null && app.getAudioManager() != null) {
+            app.getAudioManager().playSFX("sounds/menu_hover.wav");
+        }
     }
     
     /**
@@ -1404,6 +1606,8 @@ public class SettingsView extends VBox implements SupportsCleanup {
             return "CALL_BALL";
         } else if (button == turboPaddleButton) {
             return "TURBO_PADDLE";
+        } else if (button == turboBallButton) {
+            return "TURBO_BALL";
         } else if (button == plasmaWeaponButton) {
             return "PLASMA_WEAPON";
         } else if (button == pauseButton) {
@@ -1571,6 +1775,7 @@ public class SettingsView extends VBox implements SupportsCleanup {
         
         // Обновляем подпись слайдера скорости ракетки
         updateSliderLabel(paddleSpeedSlider);
+        updateSliderLabel(turboSpeedSlider);
     }
     
     /**
@@ -1588,7 +1793,11 @@ public class SettingsView extends VBox implements SupportsCleanup {
     private void updateSliderLabel(Slider slider) {
         VBox parent = (VBox) slider.getParent();
         Label valueLabel = (Label) parent.getChildren().get(2); // Третий элемент - это подпись
-        valueLabel.setText(String.valueOf((int) slider.getValue()));
+        if (slider == turboSpeedSlider) {
+            valueLabel.setText(String.format("%.1fx", slider.getValue() / 100.0));
+        } else {
+            valueLabel.setText(String.valueOf((int) slider.getValue()));
+        }
     }
 
     private boolean canEditPlayerName() {
@@ -1617,12 +1826,17 @@ public class SettingsView extends VBox implements SupportsCleanup {
         launchButton.setText(app.getSaveManager().getControlKey("LAUNCH"));
         callBallButton.setText(app.getSaveManager().getControlKey("CALL_BALL"));
         turboPaddleButton.setText(app.getSaveManager().getControlKey("TURBO_PADDLE"));
+        turboBallButton.setText(app.getSaveManager().getControlKey("TURBO_BALL"));
         plasmaWeaponButton.setText(app.getSaveManager().getControlKey("PLASMA_WEAPON"));
         pauseButton.setText(app.getSaveManager().getControlKey("PAUSE"));
         
         // Загрузка игровых настроек
+        String currentLang = app.getSaveManager().getLanguage();
+        languageComboBox.setValue(LanguageOption.fromCode(currentLang));
+        
         playerNameField.setText(app.getSaveManager().getPlayerName());
         paddleSpeedSlider.setValue(app.getSaveManager().getPaddleSpeed());
+        turboSpeedSlider.setValue(app.getSaveManager().getTurboModeSpeed() * 100);
         
         // Загрузка режима окна
         boolean isFullscreen = app.getSaveManager().isFullscreen();
@@ -1664,7 +1878,7 @@ public class SettingsView extends VBox implements SupportsCleanup {
             difficultyComboBox.setValue(app.getSaveManager().getDifficulty());
         }
 
-        callBallSoundCheckBox.setSelected(app.getSaveManager().isCallBallSoundEnabled());
+        levelBackgroundCheckBox.setSelected(app.getSaveManager().isLevelBackgroundEnabled());
         vsyncCheckBox.setSelected(app.getSaveManager().isVSyncEnabled());
         
         // Флаг isLoading сбрасывается в initializeUI() после завершения загрузки
@@ -1682,24 +1896,29 @@ public class SettingsView extends VBox implements SupportsCleanup {
         app.getSaveManager().setControlKey("LAUNCH", launchButton.getText());
         app.getSaveManager().setControlKey("CALL_BALL", callBallButton.getText());
         app.getSaveManager().setControlKey("TURBO_PADDLE", turboPaddleButton.getText());
+        app.getSaveManager().setControlKey("TURBO_BALL", turboBallButton.getText());
         app.getSaveManager().setControlKey("PLASMA_WEAPON", plasmaWeaponButton.getText());
         app.getSaveManager().setControlKey("PAUSE", pauseButton.getText());
         
         // Сохранение игровых настроек
+        if (languageComboBox.getValue() != null) {
+            app.getSaveManager().setLanguage(languageComboBox.getValue().getCode());
+        }
 
         if (canEditPlayerName()) {
             app.getSaveManager().setPlayerName(playerNameField.getText());
         }
         app.getSaveManager().setPaddleSpeed(paddleSpeedSlider.getValue());
+        app.getSaveManager().setTurboModeSpeed(turboSpeedSlider.getValue() / 100.0);
         
         // КРИТИЧНО: Сохраняем сложность только если не в паузе (в паузе сложность нельзя менять)
         if (!app.isInPauseSettings() && difficultyComboBox.getValue() != null) {
             app.getSaveManager().setDifficulty(difficultyComboBox.getValue());
         }
         
-        app.getSaveManager().setCallBallSoundEnabled(callBallSoundCheckBox.isSelected());
+        app.getSaveManager().setLevelBackgroundEnabled(levelBackgroundCheckBox.isSelected());
         app.getSaveManager().setVSyncEnabled(vsyncCheckBox.isSelected());
-        updateChangeTracker("call_ball_sound_enabled", callBallSoundCheckBox.isSelected());
+        updateChangeTracker("level_background_enabled", levelBackgroundCheckBox.isSelected());
         updateChangeTracker("vsync_enabled", vsyncCheckBox.isSelected());
 
         // Режим окна сохраняется автоматически при изменении ComboBox
@@ -1731,7 +1950,8 @@ public class SettingsView extends VBox implements SupportsCleanup {
         app.getSaveManager().setMusicVolume(musicVolumeSlider.getValue() / 100.0);
         app.getSaveManager().setSfxVolume(sfxVolumeSlider.getValue() / 100.0);
         app.getSaveManager().setPaddleSpeed(paddleSpeedSlider.getValue());
-        app.getSaveManager().setCallBallSoundEnabled(callBallSoundCheckBox.isSelected());
+        app.getSaveManager().setTurboModeSpeed(turboSpeedSlider.getValue() / 100.0);
+        app.getSaveManager().setLevelBackgroundEnabled(levelBackgroundCheckBox.isSelected());
         app.getSaveManager().setVSyncEnabled(vsyncCheckBox.isSelected());
         
         // Сохранение настроек управления
@@ -1740,6 +1960,7 @@ public class SettingsView extends VBox implements SupportsCleanup {
         app.getSaveManager().setControlKey("LAUNCH", launchButton.getText());
         app.getSaveManager().setControlKey("CALL_BALL", callBallButton.getText());
         app.getSaveManager().setControlKey("TURBO_PADDLE", turboPaddleButton.getText());
+        app.getSaveManager().setControlKey("TURBO_BALL", turboBallButton.getText());
         app.getSaveManager().setControlKey("PLASMA_WEAPON", plasmaWeaponButton.getText());
         app.getSaveManager().setControlKey("PAUSE", pauseButton.getText());
         
@@ -1772,9 +1993,10 @@ public class SettingsView extends VBox implements SupportsCleanup {
         launchButton.setText(GameConfig.DEFAULT_CONTROLS.get("LAUNCH"));
         callBallButton.setText(GameConfig.DEFAULT_CONTROLS.get("CALL_BALL"));
         turboPaddleButton.setText(GameConfig.DEFAULT_CONTROLS.get("TURBO_PADDLE"));
+        turboBallButton.setText(GameConfig.DEFAULT_CONTROLS.get("TURBO_BALL"));
         plasmaWeaponButton.setText(GameConfig.DEFAULT_CONTROLS.get("PLASMA_WEAPON"));
         pauseButton.setText(GameConfig.DEFAULT_CONTROLS.get("PAUSE"));
-        callBallSoundCheckBox.setSelected(true);
+        levelBackgroundCheckBox.setSelected(true);
         isLoading = false; // Сбрасываем флаг загрузки
 
         // Сохраняем настройки управления в базу данных
@@ -1783,6 +2005,7 @@ public class SettingsView extends VBox implements SupportsCleanup {
         app.getSaveManager().setControlKey("LAUNCH", GameConfig.DEFAULT_CONTROLS.get("LAUNCH"));
         app.getSaveManager().setControlKey("CALL_BALL", GameConfig.DEFAULT_CONTROLS.get("CALL_BALL"));
         app.getSaveManager().setControlKey("TURBO_PADDLE", GameConfig.DEFAULT_CONTROLS.get("TURBO_PADDLE"));
+        app.getSaveManager().setControlKey("TURBO_BALL", GameConfig.DEFAULT_CONTROLS.get("TURBO_BALL"));
         app.getSaveManager().setControlKey("PLASMA_WEAPON", GameConfig.DEFAULT_CONTROLS.get("PLASMA_WEAPON"));
         app.getSaveManager().setControlKey("PAUSE", GameConfig.DEFAULT_CONTROLS.get("PAUSE"));
 
@@ -1790,6 +2013,7 @@ public class SettingsView extends VBox implements SupportsCleanup {
             playerNameField.setText(localize("player.default"));
         }
         paddleSpeedSlider.setValue(GameConfig.PADDLE_SPEED);
+        turboSpeedSlider.setValue(150); // 1.5x default
         windowModeComboBox.setValue(WindowModeOption.FULLSCREEN);
         
         // Обновляем список разрешений после установки режима окна
@@ -1819,6 +2043,7 @@ public class SettingsView extends VBox implements SupportsCleanup {
         
         // Обновляем скорость ракетки в игре
         app.updatePaddleSpeed();
+        app.updateTurboSpeed();
         
         app.getAudioManager().playSFXByName("menu_select");
     }

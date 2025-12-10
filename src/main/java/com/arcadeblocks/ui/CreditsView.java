@@ -36,9 +36,14 @@ public class CreditsView extends StackPane {
     private boolean isScrolling = false;
     private boolean isPaused = false; // Флаг паузы
     private final boolean fromSaveSystem; // Флаг: запущено из системы сохранений (после прохождения уровня 116)
+    private final boolean bonusEnding; // Флаг: бонусное завершение (после уровня 1021)
+    private final String customBackgroundPath;
+    private final boolean disableMusic;
     
     // Синхронизация с музыкой
-    private String creditsMusicFile = "music/credits.mp3";
+    private static final String DEFAULT_CREDITS_MUSIC = "music/credits.mp3";
+    private static final String BONUS_MUSIC = "music/level101.mp3";
+    private String creditsMusicFile = DEFAULT_CREDITS_MUSIC;
     private boolean musicFinished = false;
     private double scrollSpeed = 0.3; // Скорость прокрутки (пикселей в секунду) - замедлена для комфортного чтения
     private double currentScrollPosition = 0.0;
@@ -54,16 +59,29 @@ public class CreditsView extends StackPane {
     private java.util.Map<Button, ScaleTransition> buttonScaleTransitions = new java.util.HashMap<>();
     
     public CreditsView(ArcadeBlocksApp app) {
-        this(app, false); // По умолчанию - не из системы сохранений
+        this(app, false, false, null, false); // По умолчанию - не из системы сохранений и не бонусное завершение
     }
     
     public CreditsView(ArcadeBlocksApp app, boolean fromSaveSystem) {
+        this(app, fromSaveSystem, false, null, false);
+    }
+
+    public CreditsView(ArcadeBlocksApp app, boolean fromSaveSystem, boolean bonusEnding) {
+        this(app, fromSaveSystem, bonusEnding, null, false);
+    }
+
+    public CreditsView(ArcadeBlocksApp app, boolean fromSaveSystem, boolean bonusEnding,
+                       String customBackgroundPath, boolean disableMusic) {
         this.app = app;
         this.fromSaveSystem = fromSaveSystem;
+        this.bonusEnding = bonusEnding;
+        this.customBackgroundPath = customBackgroundPath;
+        this.disableMusic = disableMusic;
+        this.creditsMusicFile = disableMusic ? null : (bonusEnding ? BONUS_MUSIC : DEFAULT_CREDITS_MUSIC);
         initializeUI();
         
         // Запускаем музыку титров
-        if (app.getAudioManager() != null) {
+        if (!disableMusic && app.getAudioManager() != null && creditsMusicFile != null) {
             app.getAudioManager().stopMusic();
             app.getAudioManager().playMusic(creditsMusicFile, true);
         }
@@ -76,9 +94,9 @@ public class CreditsView extends StackPane {
      */
     public void cleanup() {
         // Останавливаем музыку титров только если она еще играет
-        if (app != null && app.getAudioManager() != null) {
+        if (!disableMusic && app != null && app.getAudioManager() != null) {
             // Проверяем, играет ли музыка титров
-            if (app.getAudioManager().isMusicPlaying(creditsMusicFile)) {
+            if (creditsMusicFile != null && app.getAudioManager().isMusicPlaying(creditsMusicFile)) {
                 app.getAudioManager().stopMusic();
             }
         }
@@ -223,10 +241,16 @@ public class CreditsView extends StackPane {
     
     private void initializeUI() {
         setAlignment(Pos.CENTER);
-        // Фон титров — изображение credits_background.png
+        // Фон титров — изображение credits_background.png или бонусный фон
         try {
             // Загружаем из каталога assets/textures
-            javafx.scene.image.Image bgImg = ImageCache.get("credits_background.png");
+            String backgroundPath;
+            if (customBackgroundPath != null && !customBackgroundPath.isBlank()) {
+                backgroundPath = customBackgroundPath;
+            } else {
+                backgroundPath = bonusEnding ? "level101.png" : "credits_background.png";
+            }
+            javafx.scene.image.Image bgImg = ImageCache.get(backgroundPath);
             if (bgImg != null) {
                 javafx.scene.layout.BackgroundSize bs = new javafx.scene.layout.BackgroundSize(
                     100, 100, true, true, false, true
@@ -471,9 +495,15 @@ public class CreditsView extends StackPane {
         // После окончания возвращаемся в меню
         javafx.application.Platform.runLater(() -> {
             // Очищаем сохраненную музыку при возврате из титров
-            app.getAudioManager().clearSavedMusic();
-            // returnToMainMenuFromSettings() сам вызовет cleanup через removeUINodeSafely
-            app.returnToMainMenuFromSettings();
+            if (app.getAudioManager() != null) {
+                app.getAudioManager().clearSavedMusic();
+            }
+            if (fromSaveSystem && bonusEnding) {
+                playAfterCreditsVideoAndReturnToMenu();
+            } else {
+                // returnToMainMenuFromSettings() сам вызовет cleanup через removeUINodeSafely
+                app.returnToMainMenuFromSettings();
+            }
         });
     }
     
@@ -509,13 +539,17 @@ public class CreditsView extends StackPane {
         cleanup();
         com.almasb.fxgl.dsl.FXGL.getGameScene().removeUINode(this);
         
-        // Устанавливаем флаг завершения игры для текущего слота
-        if (app.getSaveManager() != null) {
+        // Устанавливаем флаг завершения игры для текущего слота только для основной кампании
+        if (app.getSaveManager() != null && !bonusEnding) {
             app.getSaveManager().setGameCompletedForActiveSlot();
         }
         
         // Воспроизводим видео after_credits_video.mp4 через метод приложения
-        app.playAfterCreditsVideo();
+        if (bonusEnding) {
+            app.playAfterCreditsVideo("level101_init.mp4", 12.0);
+        } else {
+            app.playAfterCreditsVideo();
+        }
     }
     
     /**
@@ -640,7 +674,11 @@ public class CreditsView extends StackPane {
             app.getAudioManager().playSFXByName("menu_back");
             stopCredits();
             
-            if (fromSaveSystem) {
+            if (app.isDebugMode()) {
+                // В debug-режиме не трогаем сохранения и сразу уходим в главное меню без видео
+                cleanup();
+                app.returnToMainMenuFromSettings();
+            } else if (fromSaveSystem) {
                 // Если титры запущены из системы сохранений (после прохождения уровня 116)
                 // Воспроизводим специальное видео перед возвратом в главное меню
                 playAfterCreditsVideoAndReturnToMenu();

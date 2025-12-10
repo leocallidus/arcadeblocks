@@ -123,11 +123,19 @@ public class ArcadeBlocksFactory implements EntityFactory {
         PhysicsComponent physics = new PhysicsComponent();
         physics.setBodyType(BodyType.DYNAMIC);
         
+<<<<<<< HEAD
+        var texture = TextureUtils.loadScaledTexture("bonus_score.png", 39);
+        
+        return entityBuilder(data)
+            .type(EntityType.POWERUP)
+            .bbox(new HitBox(BoundingShape.circle(20)))
+=======
         var texture = TextureUtils.loadScaledTexture("bonus_score.png", 42);
         
         return entityBuilder(data)
             .type(EntityType.POWERUP)
             .bbox(new HitBox(BoundingShape.circle(21)))
+>>>>>>> origin/main
             .view(texture)
             .with(physics)
             .collidable()
@@ -143,11 +151,16 @@ public class ArcadeBlocksFactory implements EntityFactory {
         }
         
         // Загружаем текстуру бонуса (масштаб под 1024px исходники)
+<<<<<<< HEAD
+        var texture = TextureUtils.loadScaledTexture(bonusType.getTextureName(), 81, 42);
+=======
         var texture = TextureUtils.loadScaledTexture(bonusType.getTextureName(), 85, 44);
+>>>>>>> origin/main
 
         boolean invisibleCapsule = false;
         try {
-            invisibleCapsule = FXGL.geti("level") == 100;
+            int lvl = FXGL.geti("level");
+            invisibleCapsule = (lvl == 100 || lvl == 1021);
         } catch (Exception ignored) {
         }
 
@@ -158,7 +171,11 @@ public class ArcadeBlocksFactory implements EntityFactory {
         
         Entity entity = entityBuilder(data)
             .type(EntityType.BONUS)
+<<<<<<< HEAD
+            .bbox(new HitBox(BoundingShape.box(81, 42)))
+=======
             .bbox(new HitBox(BoundingShape.box(85, 44)))
+>>>>>>> origin/main
             .view(texture)
             .collidable()
             .build();
@@ -214,10 +231,19 @@ public class ArcadeBlocksFactory implements EntityFactory {
         if (isExtraWall) {
             // Используем текстуру для дополнительной стены
             var texture = FXGL.texture("extra_wall.png", width, height);
+            
+            // Добавляем PhysicsComponent для корректной работы CCD (предотвращение туннелирования)
+            PhysicsComponent physics = new PhysicsComponent();
+            physics.setBodyType(BodyType.STATIC);
+            physics.setFixtureDef(new com.almasb.fxgl.physics.box2d.dynamics.FixtureDef()
+                .friction(0.0f)
+                .restitution(1.0f));
+            
             return entityBuilder(data)
                 .type(EntityType.WALL)
                 .bbox(new HitBox(BoundingShape.box(width, height)))
                 .view(texture)
+                .with(physics)
                 .collidable()
                 .build();
         } else {

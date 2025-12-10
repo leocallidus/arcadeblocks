@@ -11,6 +11,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
@@ -221,11 +222,17 @@ public class PauseView extends VBox implements SupportsCleanup {
             returnToMainMenu();
         });
         
-        menuBox.getChildren().addAll(resumeButton, settingsButton, helpButton, mainMenuButton);
+        // Кнопка перезапуска уровня
+        Button restartButton = createMenuButton("pause.button.restart", GameConfig.NEON_GREEN, () -> {
+            app.getAudioManager().playSFXByName("menu_select");
+            showRestartConfirm();
+        });
+
+        menuBox.getChildren().addAll(resumeButton, settingsButton, helpButton, restartButton, mainMenuButton);
         
         // Сохраняем ссылки на кнопки для навигации (продолжить первая)
         // Исключаем отключенную кнопку настроек из навигации
-        menuButtons = new Button[]{resumeButton, helpButton, mainMenuButton};
+        menuButtons = new Button[]{resumeButton, helpButton, restartButton, mainMenuButton};
         
         // Устанавливаем визуальное выделение первой кнопки
         updateButtonHighlight();
@@ -490,5 +497,127 @@ public class PauseView extends VBox implements SupportsCleanup {
         if (appRef != null) {
             appRef.returnToMainMenu();
         }
+    }
+
+    private void showRestartConfirm() {
+        if (app == null) {
+            return;
+        }
+        VBox dialog = new VBox(12);
+        dialog.setAlignment(Pos.CENTER);
+        dialog.setPadding(new Insets(18));
+        dialog.setStyle("-fx-background-color: rgba(10,12,18,0.96); -fx-background-radius: 14; " +
+            "-fx-border-radius: 14; -fx-border-color: rgba(255,255,255,0.12); -fx-border-width: 1;");
+
+        Label title = new Label(localize("pause.restart.title"));
+        title.setFont(Font.font("Orbitron", FontWeight.EXTRA_BOLD, 18));
+        title.setTextFill(Color.web(GameConfig.NEON_GREEN));
+
+        Label subtitle = new Label(localize("pause.restart.subtitle"));
+        subtitle.setFont(Font.font("Orbitron", FontWeight.NORMAL, 13));
+        subtitle.setTextFill(Color.web("#cfd7e3"));
+        subtitle.setWrapText(true);
+        subtitle.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+        subtitle.setMaxWidth(360);
+
+        Button cancel = new Button(localize("pause.restart.cancel"));
+        cancel.setFont(Font.font("Orbitron", FontWeight.BOLD, 14));
+        cancel.setTextFill(Color.web("#f5f7ff"));
+        cancel.setCursor(javafx.scene.Cursor.HAND);
+        cancel.setStyle("-fx-background-color: linear-gradient(to right, #3b4258, #202534);" +
+            "-fx-background-radius: 12; -fx-border-radius: 12; -fx-border-color: rgba(255,255,255,0.08);" +
+            "-fx-border-width: 1; -fx-padding: 8 18 8 18;");
+        ScaleTransition cancelScale = new ScaleTransition(Duration.millis(140), cancel);
+        cancelScale.setFromX(1.0);
+        cancelScale.setFromY(1.0);
+        cancelScale.setToX(1.05);
+        cancelScale.setToY(1.05);
+
+        Button confirm = new Button(localize("pause.restart.confirm"));
+        confirm.setFont(Font.font("Orbitron", FontWeight.BOLD, 14));
+        confirm.setTextFill(Color.web("#0c0c0f"));
+        confirm.setCursor(javafx.scene.Cursor.HAND);
+        confirm.setStyle("-fx-background-color: linear-gradient(to right, #7CFF72, #4DE964);" +
+            "-fx-background-radius: 12; -fx-border-radius: 12; -fx-border-color: rgba(0,0,0,0.3);" +
+            "-fx-border-width: 1; -fx-padding: 8 18 8 18;");
+        ScaleTransition confirmScale = new ScaleTransition(Duration.millis(140), confirm);
+        confirmScale.setFromX(1.0);
+        confirmScale.setFromY(1.0);
+        confirmScale.setToX(1.05);
+        confirmScale.setToY(1.05);
+
+        HBox buttons = new HBox(12, cancel, confirm);
+        buttons.setAlignment(Pos.CENTER);
+
+        dialog.getChildren().addAll(title, subtitle, buttons);
+
+        javafx.scene.layout.StackPane overlay = new javafx.scene.layout.StackPane();
+        overlay.setStyle("-fx-background-color: rgba(0,0,0,0.65);");
+        overlay.setAlignment(Pos.CENTER);
+        overlay.setPrefSize(GameConfig.GAME_WIDTH, GameConfig.GAME_HEIGHT);
+        overlay.getChildren().add(dialog);
+        overlay.setUserData("restartConfirm");
+        overlay.setOpacity(0);
+
+        FXGL.getGameScene().addUINode(overlay);
+
+        FadeTransition fadeIn = new FadeTransition(Duration.millis(180), overlay);
+        fadeIn.setToValue(1.0);
+        fadeIn.play();
+
+        cancel.setOnAction(e -> {
+            app.getAudioManager().playSFXByName("menu_back");
+            FadeTransition out = new FadeTransition(Duration.millis(160), overlay);
+            out.setToValue(0.0);
+            out.setOnFinished(ev -> FXGL.getGameScene().removeUINode(overlay));
+            out.play();
+        });
+
+        confirm.setOnAction(e -> {
+            app.getAudioManager().playSFXByName("menu_select");
+            FXGL.getGameScene().removeUINode(overlay);
+            restartLevelImmediately();
+        });
+
+        cancel.setOnMouseEntered(e -> {
+            if (app != null && app.getAudioManager() != null) {
+                app.getAudioManager().playSFX("sounds/menu_hover.wav");
+            }
+            cancelScale.playFromStart();
+        });
+        cancel.setOnMouseExited(e -> {
+            cancelScale.stop();
+            cancel.setScaleX(1.0);
+            cancel.setScaleY(1.0);
+        });
+
+        confirm.setOnMouseEntered(e -> {
+            if (app != null && app.getAudioManager() != null) {
+                app.getAudioManager().playSFX("sounds/menu_hover.wav");
+            }
+            confirmScale.playFromStart();
+        });
+        confirm.setOnMouseExited(e -> {
+            confirmScale.stop();
+            confirm.setScaleX(1.0);
+            confirm.setScaleY(1.0);
+        });
+    }
+    
+    private String localize(String key) {
+        if (key == null || key.isBlank()) {
+            return "";
+        }
+        return localizationManager.getOrDefault(key, key);
+    }
+
+    private void restartLevelImmediately() {
+        if (app == null) {
+            return;
+        }
+        app.resetPauseState();
+        cleanup();
+        FXGL.getGameScene().removeUINode(this);
+        app.restartCurrentLevelFromPause();
     }
 }

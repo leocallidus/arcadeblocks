@@ -26,11 +26,19 @@ public class GameConfig {
     private static Resolution currentResolution = DEFAULT_RESOLUTION;
     
     // Размеры игровых объектов
+<<<<<<< HEAD
+    public static final int PADDLE_WIDTH = 156;
+    public static final int PADDLE_HEIGHT = 26;
+    public static final int BALL_RADIUS = 10;
+    public static final int BRICK_WIDTH = 80;
+    public static final int BRICK_HEIGHT = 30;
+=======
     public static final int PADDLE_WIDTH = 170;
     public static final int PADDLE_HEIGHT = 28;
     public static final int BALL_RADIUS = 11;
     public static final int BRICK_WIDTH = 85;
     public static final int BRICK_HEIGHT = 32;
+>>>>>>> origin/main
     public static final double PADDLE_MAX_SIZE_MULTIPLIER = 6.0;
     
     // Отступы игрового поля
@@ -39,6 +47,7 @@ public class GameConfig {
     // Скорости
     public static final double PADDLE_SPEED = 400.0;
     public static final double BALL_SPEED = 650.0;  // Увеличили с 500 до 750 (1.5x) для оптимальной скорости
+    public static final double DEFAULT_TURBO_SPEED = 1.5;
     public static final double BOSS_PROJECTILE_SPEED = 200.0;
     
     // Игровые константы
@@ -94,8 +103,9 @@ public class GameConfig {
         put("MOVE_LEFT", "LEFT");
         put("MOVE_RIGHT", "RIGHT");
         put("LAUNCH", "SPACE");
-        put("CALL_BALL", "V");
+        put("CALL_BALL", "B");
         put("TURBO_PADDLE", "X");
+        put("TURBO_BALL", "V");
         put("PAUSE", "ESCAPE");
         put("PLASMA_WEAPON", "Z");
     }};

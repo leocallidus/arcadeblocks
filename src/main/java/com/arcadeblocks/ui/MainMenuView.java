@@ -247,6 +247,30 @@ public class MainMenuView extends StackPane {
         contentBox = null;
     }
 
+    /**
+     * Перестраивает фон в соответствии с текущей игровой линией и прогрессом.
+     */
+    public void refreshBackground() {
+        try {
+            ImageView newBg = createBackgroundImage(true, null);
+            if (newBg == null) {
+                return;
+            }
+            int idx = getChildren().indexOf(backgroundImageView);
+            if (idx >= 0) {
+                getChildren().set(idx, newBg);
+            } else {
+                getChildren().add(0, newBg);
+            }
+            if (backgroundImageView != null) {
+                backgroundImageView.setImage(null);
+            }
+            backgroundImageView = newBg;
+        } catch (Exception e) {
+            System.err.println("Не удалось обновить фон главного меню: " + e.getMessage());
+        }
+    }
+
     private void initializeUI(boolean shouldChangeBackground) {
         initializeUI(shouldChangeBackground, null);
     }
@@ -335,33 +359,11 @@ public class MainMenuView extends StackPane {
 
             if (backgroundPath == null) {
                 // Определяем состояние прогресса игры
-                com.arcadeblocks.config.AudioConfig.GameProgressState progressState = 
-                    com.arcadeblocks.config.AudioConfig.GameProgressState.NORMAL;
-                
-                if (app.getSaveManager() != null) {
-                    int maxLevel = 0;
-                    boolean gameCompleted = false;
-                    
-                    // Проверяем все слоты сохранения
-                    for (int slot = 1; slot <= 4; slot++) {
-                        com.arcadeblocks.utils.SaveManager.SaveInfo saveInfo = app.getSaveManager().getSaveInfo(slot);
-                        if (saveInfo != null) {
-                            if (saveInfo.level > maxLevel) {
-                                maxLevel = saveInfo.level;
-                            }
-                            if (app.getSaveManager().isGameCompletedInSlot(slot)) {
-                                gameCompleted = true;
-                            }
-                        }
-                    }
-                    
-                    // Определяем состояние прогресса
-                    if (gameCompleted) {
-                        progressState = com.arcadeblocks.config.AudioConfig.GameProgressState.COMPLETED;
-                    } else if (maxLevel >= 101) {
-                        progressState = com.arcadeblocks.config.AudioConfig.GameProgressState.AFTER_LEVEL_100;
-                    }
-                }
+                com.arcadeblocks.config.AudioConfig.GameProgressState progressState =
+                    app.getSaveManager() != null
+                        ? app.getSaveManager().getMenuProgressState()
+                        : com.arcadeblocks.config.AudioConfig.GameProgressState.NORMAL;
+                System.out.println("[MainMenuView] progressState=" + progressState);
                 
                 // Проверяем, нужно ли использовать специальные фоны
                 boolean useSpecialBackgrounds = progressState != com.arcadeblocks.config.AudioConfig.GameProgressState.NORMAL;
@@ -491,22 +493,16 @@ public class MainMenuView extends StackPane {
             app.showHelp();
         }, 2);
         
-        // Язык
-        Button languageButton = createMenuButton("menu.language", GameConfig.NEON_ORANGE, () -> {
-            app.getAudioManager().playSFXByName("menu_select");
-            app.showLanguageWindow();
-        }, 3);
-        
         // Выход
         Button exitButton = createMenuButton("menu.exit", GameConfig.NEON_YELLOW, () -> {
             app.getAudioManager().playSFXByName("menu_select");
             exitGame();
-        }, 4);
+        }, 3);
         
-        menuBox.getChildren().addAll(newGameButton, settingsButton, helpButton, languageButton, exitButton);
+        menuBox.getChildren().addAll(newGameButton, settingsButton, helpButton, exitButton);
         
         // Сохраняем ссылки на кнопки для навигации
-        menuButtons = new Button[]{newGameButton, settingsButton, helpButton, languageButton, exitButton};
+        menuButtons = new Button[]{newGameButton, settingsButton, helpButton, exitButton};
         
         // Устанавливаем визуальное выделение первой кнопки
         updateButtonHighlight();
@@ -737,8 +733,8 @@ public class MainMenuView extends StackPane {
     
     
     private void showSaveGameWindow() {
-        // Показываем окно сохранений
-        app.showSaveGameWindow();
+        // Показываем окно выбора игровой линии
+        FXGL.getGameScene().addUINode(new GameLineSelectionView(app));
     }
     
     private void startNewGame() {

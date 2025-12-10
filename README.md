@@ -59,10 +59,18 @@ For detailed technical documentation, architecture overview, and development gui
 ## 🚀 Quick Start
 
 ### Prerequisites
-- **Java 21** or higher ([Download JDK](https://www.azul.com/downloads/?package=jdk-fx#zulu))
-- **Gradle** (included via wrapper)
+- **Java 21 with JavaFX** (e.g., Azul Zulu FX JDK 21 that bundles JavaFX) - set `JAVA_HOME` to this JDK
+- **Gradle Wrapper** - use the repo-provided `./gradlew`/`gradlew.bat` (first run downloads Gradle automatically)
 - **Git LFS** (for video files) - [Install Git LFS](https://git-lfs.github.com/)
 - **VLC Media Player** (optional, for boss videos)
+
+Git LFS quick commands:
+```bash
+git lfs install          # one-time setup
+git lfs fetch --all      # fetch all LFS objects
+git lfs pull             # download pointers for the current branch
+git lfs status           # verify files are pulled
+```
 
 ### Running from Source
 

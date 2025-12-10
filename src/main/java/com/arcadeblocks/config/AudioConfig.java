@@ -83,7 +83,13 @@ public class AudioConfig {
         // put("powerup_pickup", "sounds/sfx/powerup_pickup.wav");
         
         // Новые звуки бонусов
-        put("bonus_score", "sounds/bonus_sounds/extra_score.wav");
+        put("bonus_score", "sounds/bonus_sounds/extra_score2.wav");
+        put("bonus_score_200", "sounds/bonus_sounds/extra_score2.wav");
+        put("bonus_score_500", "sounds/bonus_sounds/extra_score2.wav");
+        put("bonus_add_five_seconds", "sounds/bonus_pickup.wav");
+        put("add_five_seconds", "sounds/bonus_pickup.wav"); // alias для BonusType.ADD_FIVE_SECONDS
+        put("call_ball_bonus", "sounds/call_ball_activation.wav");
+        put("call_ball", "sounds/call_ball_activation.wav");
         put("extra_life", "sounds/bonus_sounds/extra_life.wav");
         put("increase_paddle", "sounds/bonus_sounds/increase_paddle.wav");
         put("sticky_paddle", "sounds/bonus_sounds/sticky_paddle.wav");
@@ -214,9 +220,89 @@ public class AudioConfig {
         put(112, "sounds/level_loading112.wav");
         put(113, "sounds/level_loading113.wav");
         put(116, "sounds/level_loading116.wav");
+
+        // Бонусная глава: звуки загрузки для уровней 1001-1019
+        put(1001, "sounds/level_bonus_init1.wav");
+        put(1002, "sounds/level_bonus_init2.wav");
+        put(1003, "sounds/level_bonus_init3.wav");
+        put(1004, "sounds/level_bonus_init4.wav");
+        put(1005, "sounds/level_bonus_init5.wav");
+        put(1006, "sounds/level_bonus_init6.wav");
+        put(1007, "sounds/level_bonus_init7.wav");
+        put(1008, "sounds/level_bonus_init8.wav");
+        put(1009, "sounds/level_bonus_init9.wav");
+        put(1011, "sounds/level_bonus_init11.wav");
+        put(1012, "sounds/level_bonus_init12.wav");
+        put(1013, "sounds/level_bonus_init13.wav");
+        put(1014, "sounds/level_bonus_init14.wav");
+        put(1015, "sounds/level_bonus_init15.wav");
+        put(1016, "sounds/level_bonus_init16.wav");
+        put(1017, "sounds/level_bonus_init17.wav");
+        put(1018, "sounds/level_bonus_init18.wav");
+        put(1019, "sounds/level_bonus_init19.wav");
     }};
     
     public static final Map<Integer, List<String>> LEVEL_BRICK_HIT_SOUNDS = new HashMap<>() {{
+        put(10, List.of(
+            "sounds/boss1_hit1.wav",
+            "sounds/boss1_hit2.wav",
+            "sounds/boss1_hit3.wav",
+            "sounds/boss1_hit4.wav"
+        ));
+        put(20, List.of(
+            "sounds/boss2_hit1.wav",
+            "sounds/boss2_hit2.wav",
+            "sounds/boss2_hit3.wav",
+            "sounds/boss_2_hit4.wav"
+        ));
+        put(30, List.of(
+            "sounds/boss3_hit1.wav",
+            "sounds/boss3_hit2.wav",
+            "sounds/boss3_hit3.wav",
+            "sounds/boss3_hit4.wav"
+        ));
+        put(40, List.of(
+            "sounds/boss4_hit1.wav",
+            "sounds/boss4_hit2.wav",
+            "sounds/boss4_hit3.wav",
+            "sounds/boss4_hit4.wav"
+        ));
+        put(50, List.of(
+            "sounds/boss5_hit1.wav",
+            "sounds/boss5_hit2.wav",
+            "sounds/boss5_hit3.wav",
+            "sounds/boss5_hit4.wav"
+        ));
+        put(60, List.of(
+            "sounds/boss6_hit1.wav",
+            "sounds/boss6_hit2.wav",
+            "sounds/boss6_hit3.wav",
+            "sounds/boss6_hit4.wav"
+        ));
+        put(70, List.of(
+            "sounds/boss7_hit1.wav",
+            "sounds/boss7_hit2.wav",
+            "sounds/boss7_hit3.wav",
+            "sounds/boss7_hit4.wav"
+        ));
+        put(80, List.of(
+            "sounds/boss8_hit1.wav",
+            "sounds/boss8_hit2.wav",
+            "sounds/boss8_hit3.wav",
+            "sounds/boss8_hit4.wav"
+        ));
+        put(90, List.of(
+            "sounds/boss9_hit1.wav",
+            "sounds/boss9_hit2.wav",
+            "sounds/boss9_hit3.wav",
+            "sounds/boss9_hit4.wav"
+        ));
+        put(100, List.of(
+            "sounds/boss10_hit1.wav",
+            "sounds/boss10_hit2.wav",
+            "sounds/boss10_hit3.wav",
+            "sounds/boss10_hit4.wav"
+        ));
         // Особые уровни Главы XII (вместо боссов)
         put(114, List.of(
             "sounds/boss11_hit1.wav",
@@ -229,6 +315,25 @@ public class AudioConfig {
             "sounds/boss12_hit2.wav",
             "sounds/boss12_hit3.wav",
             "sounds/boss12_hit4.wav"
+        ));
+        // Бонусные боссы
+        put(1010, List.of(
+            "sounds/boss13_hit1.wav",
+            "sounds/boss13_hit2.wav",
+            "sounds/boss13_hit3.wav",
+            "sounds/boss13_hit4.wav"
+        ));
+        put(1020, List.of(
+            "sounds/boss14_hit1.wav",
+            "sounds/boss14_hit2.wav",
+            "sounds/boss14_hit3.wav",
+            "sounds/boss14_hit4.wav"
+        ));
+        put(1021, List.of(
+            "sounds/boss15_hit1.wav",
+            "sounds/boss15_hit2.wav",
+            "sounds/boss15_hit3.wav",
+            "sounds/boss15_hit4.wav"
         ));
     }};
     
@@ -494,6 +599,9 @@ public class AudioConfig {
      * Получить звук загрузки уровня
      */
     public static String getLevelLoadingSound(int levelNumber) {
+        if (levelNumber >= 5000 && levelNumber < 5100) {
+            return "sounds/level_loadinglbreakout.wav";
+        }
         if (LEVEL_LOADING_SOUNDS.containsKey(levelNumber)) {
             return LEVEL_LOADING_SOUNDS.get(levelNumber);
         }

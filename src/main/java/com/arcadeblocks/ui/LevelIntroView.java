@@ -5,6 +5,7 @@ import com.arcadeblocks.ArcadeBlocksApp;
 import com.arcadeblocks.config.AudioConfig;
 import com.arcadeblocks.config.LevelConfig;
 import com.arcadeblocks.config.GameConfig;
+import com.arcadeblocks.config.BonusLevelConfig;
 import com.arcadeblocks.localization.LocalizationManager;
 import com.arcadeblocks.ui.util.ResponsiveLayoutHelper;
 import com.arcadeblocks.utils.ImageCache;
@@ -34,6 +35,10 @@ public class LevelIntroView extends StackPane implements SupportsCleanup {
     private Label levelNumberLabel;
     private Color accentColor;
     private LevelConfig.LevelChapter chapterInfo;
+    private BonusLevelConfig.BonusChapter bonusChapterInfo;
+    private BonusLevelConfig.BonusLevelData bonusLevelData;
+    private boolean isBonusLevel;
+    private String backgroundImagePath;
     private boolean loadingSoundFinished = false;
     private boolean minDisplayFinished = false;
     private boolean completionTriggered = false;
@@ -69,11 +74,25 @@ public class LevelIntroView extends StackPane implements SupportsCleanup {
         setAlignment(Pos.CENTER);
 
         // Определяем цвет и данные главы в зависимости от уровня
-        this.chapterInfo = LevelConfig.getChapter(levelNumber);
-        this.accentColor = resolveAccentColor(this.chapterInfo);
+        this.isBonusLevel = BonusLevelConfig.isBonusLevel(levelNumber);
+        if (isBonusLevel) {
+            this.bonusLevelData = BonusLevelConfig.getLevelData(levelNumber);
+            this.bonusChapterInfo = BonusLevelConfig.getChapter(levelNumber);
+            if (bonusChapterInfo != null && bonusChapterInfo.getAccentColorHex() != null) {
+                this.accentColor = Color.web(bonusChapterInfo.getAccentColorHex());
+            } else {
+                this.accentColor = Color.web(GameConfig.NEON_CYAN);
+            }
+            if (bonusLevelData != null) {
+                this.backgroundImagePath = bonusLevelData.getBackgroundImage();
+            }
+        } else {
+            this.chapterInfo = LevelConfig.getChapter(levelNumber);
+            this.accentColor = resolveAccentColor(this.chapterInfo);
+        }
 
         // Создаем фоновый узел (будет масштабироваться на весь экран)
-        backgroundNode = createBackgroundNode(levelNumber, 0.7);
+        backgroundNode = createBackgroundNode(levelNumber, backgroundImagePath, 0.7);
 
         // Полупрозрачный оверлей для читаемости текста (будет масштабироваться на весь экран)
         overlayRect = new Rectangle();
@@ -129,15 +148,33 @@ public class LevelIntroView extends StackPane implements SupportsCleanup {
     }
 
     public static javafx.scene.Node createBackgroundNode(int levelNumber, double opacity) {
-        LevelConfig.LevelData levelData = LevelConfig.getLevel(levelNumber);
-        if (levelData == null || levelData.getBackgroundImage() == null || levelData.getBackgroundImage().isBlank()) {
+        return createBackgroundNode(levelNumber, null, opacity);
+    }
+
+    public static javafx.scene.Node createBackgroundNode(int levelNumber, String explicitBackground, double opacity) {
+        String backgroundImage = explicitBackground;
+        if (backgroundImage == null || backgroundImage.isBlank()) {
+            if (BonusLevelConfig.isBonusLevel(levelNumber)) {
+                BonusLevelConfig.BonusLevelData bonusData = BonusLevelConfig.getLevelData(levelNumber);
+                if (bonusData != null) {
+                    backgroundImage = bonusData.getBackgroundImage();
+                }
+            } else {
+                LevelConfig.LevelData levelData = LevelConfig.getLevel(levelNumber);
+                if (levelData != null) {
+                    backgroundImage = levelData.getBackgroundImage();
+                }
+            }
+        }
+
+        if (backgroundImage == null || backgroundImage.isBlank()) {
             return null;
         }
         
         try {
             // Используем текущее разрешение для фона (как в главном меню)
             com.arcadeblocks.config.Resolution currentRes = GameConfig.getCurrentResolution();
-            javafx.scene.image.Image bgImage = ImageCache.get(levelData.getBackgroundImage());
+            javafx.scene.image.Image bgImage = ImageCache.get(backgroundImage);
             if (bgImage == null) {
                 return null;
             }
@@ -179,15 +216,22 @@ public class LevelIntroView extends StackPane implements SupportsCleanup {
         
         // Информация о главе
         Label chapterLabel;
-        if (chapterInfo != null) {
-            String chapterText = localizationManager.format(
-                "level.intro.chapter.named",
-                chapterInfo.getRomanNumeral(),
-                chapterInfo.getTitle()
-            );
+        if (isBonusLevel) {
+            String roman = bonusChapterInfo != null ? bonusChapterInfo.getRomanNumeral() : "I";
+            String title = bonusChapterInfo != null ? bonusChapterInfo.getTitle() : localizationManager.get("bonus.chapter.title.1");
+            String chapterText = localizationManager.format("level.intro.bonus.chapter.named", roman, title);
             chapterLabel = new Label(chapterText);
         } else {
-            chapterLabel = new Label(localizationManager.format("level.intro.chapter.number", (levelNumber + 9) / 10));
+            if (chapterInfo != null) {
+                String chapterText = localizationManager.format(
+                    "level.intro.chapter.named",
+                    chapterInfo.getRomanNumeral(),
+                    chapterInfo.getTitle()
+                );
+                chapterLabel = new Label(chapterText);
+            } else {
+                chapterLabel = new Label(localizationManager.format("level.intro.chapter.number", (levelNumber + 9) / 10));
+            }
         }
         chapterLabel.setFont(Font.font("Orbitron", FontWeight.SEMI_BOLD, 20));
         chapterLabel.setTextFill(accentColor);
@@ -728,12 +772,21 @@ public class LevelIntroView extends StackPane implements SupportsCleanup {
      * Получить локализованное название уровня (только название, без префикса "Уровень X:" или "Level X:")
      */
     private String getLocalizedLevelName(int levelNumber) {
-        LevelConfig.LevelData levelData = LevelConfig.getLevel(levelNumber);
-        if (levelData == null) {
-            return "";
+        String fullName;
+        LevelConfig.LevelData levelData = null;
+        if (BonusLevelConfig.isBonusLevel(levelNumber)) {
+            BonusLevelConfig.BonusLevelData bonusData = BonusLevelConfig.getLevelData(levelNumber);
+            if (bonusData == null) {
+                return "";
+            }
+            fullName = LocalizationManager.getInstance().getOrDefault(bonusData.getNameKey(), bonusData.getName());
+        } else {
+            levelData = LevelConfig.getLevel(levelNumber);
+            if (levelData == null) {
+                return "";
+            }
+            fullName = levelData.getName();
         }
-        
-        String fullName = levelData.getName();
         
         // Извлекаем часть после "Уровень X:" или "Level X:" для русской и английской локализации
         // Пробуем найти двоеточие после номера уровня
@@ -749,7 +802,17 @@ public class LevelIntroView extends StackPane implements SupportsCleanup {
                 displayName = fullName;
             }
         }
-        
-        return displayName.isEmpty() ? fullName : displayName;
+
+        boolean isLBreakout = levelData != null && levelData.getLevelFormat() == LevelConfig.LevelFormat.LBREAKOUT;
+        boolean missingTitle = displayName.isBlank() || (fullName != null && fullName.trim().endsWith(":"));
+        if (isLBreakout) {
+            String fallbackTitle = LevelConfig.getLBreakoutHdTitle(levelNumber);
+            if (fallbackTitle != null && !fallbackTitle.isBlank()) {
+                // Для LBreakoutHD всегда используем эталонное название из списка, чтобы исключить пустые/урезанные строки
+                displayName = fallbackTitle;
+            }
+        }
+
+        return displayName.isBlank() ? fullName : displayName;
     }
 }

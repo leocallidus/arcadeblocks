@@ -13,6 +13,13 @@ Arcade Blocks is a modern arcade-style block breaking game (Arkanoid-style) buil
 - SQLite for persistent storage
 - Jackson for JSON level data
 
+## Environment Requirements
+
+- **JDK**: Java 21 **with JavaFX** (recommended: Azul Zulu FX JDK 21 which bundles JavaFX modules). Set `JAVA_HOME` to this JDK.
+- **Gradle Wrapper**: Use the repo-provided `./gradlew` (Unix/macOS) or `gradlew.bat` (Windows). The wrapper will download the required Gradle distribution on first run.
+- **Executable wrapper**: If needed, run `chmod +x gradlew` after cloning to make the wrapper executable on Unix/macOS.
+- **JavaFX on custom JDKs**: If you use a JDK without bundled JavaFX, install matching JavaFX SDK and add `--module-path` and `--add-modules` flags, or switch to Azul Zulu FX.
+
 ## Build Commands
 
 ### Development
@@ -41,8 +48,14 @@ This project uses **Git LFS** (Large File Storage) to manage video files (boss c
 # Install Git LFS (one-time setup)
 git lfs install
 
-# Pull all LFS files (video files)
+# Fetch all LFS objects (all branches/remotes)
+git lfs fetch --all
+
+# Download LFS pointers for the current branch
 git lfs pull
+
+# Recreate working tree files from fetched objects (if needed)
+git lfs checkout
 
 # Check LFS status
 git lfs status

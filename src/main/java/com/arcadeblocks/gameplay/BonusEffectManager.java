@@ -70,6 +70,7 @@ public class BonusEffectManager {
 
     // Состояние дождя очков
     private boolean scoreRainActive = false;
+    private boolean callBallBonusActive = false;
     public static final int SCORE_RAIN_BONUS_POINTS = 1000;
 
     // Состояние бонуса темноты
@@ -348,6 +349,9 @@ public class BonusEffectManager {
                 break;
             case SCORE_RAIN:
                 scoreRainActive = false;
+                break;
+            case CALL_BALL:
+                deactivateCallBallBonus();
                 break;
             default:
                 break;
@@ -884,6 +888,18 @@ public class BonusEffectManager {
             case BONUS_SCORE:
                 applyBonusScore();
                 break;
+            case BONUS_SCORE_200:
+                applyBonusScoreCustom(BonusType.BONUS_SCORE_200, 200);
+                break;
+            case BONUS_SCORE_500:
+                applyBonusScoreCustom(BonusType.BONUS_SCORE_500, 500);
+                break;
+            case ADD_FIVE_SECONDS:
+                applyAddFiveSeconds();
+                break;
+            case CALL_BALL:
+                applyCallBallBonus();
+                break;
             case EXTRA_LIFE:
                 applyExtraLife();
                 break;
@@ -964,14 +980,58 @@ public class BonusEffectManager {
     // ========== ПОЗИТИВНЫЕ ЭФФЕКТЫ ==========
     
     private void applyBonusScore() {
-        // Воспроизводим звук активации
-        playBonusSound(BonusType.BONUS_SCORE);
-        
-        // Добавляем 1000 очков
+        applyBonusScoreCustom(BonusType.BONUS_SCORE, 1000);
+    }
+
+    private void applyBonusScoreCustom(BonusType bonusType, int points) {
+        playBonusSound(bonusType);
+        int safePoints = Math.max(0, points);
         if (app.getScoreManager() != null) {
-            app.getScoreManager().addScore(1000);
-        // System.out.println("+1000 очков!");
+            app.getScoreManager().addScore(safePoints);
         }
+        // UI/FXGL score synchronized inside ScoreManager.addScore
+    }
+
+    private void applyAddFiveSeconds() {
+        playBonusSound(BonusType.ADD_FIVE_SECONDS);
+
+        int extraSeconds = 5;
+        long deltaMillis = extraSeconds * 1000L;
+        long now = System.currentTimeMillis();
+
+        // Продлеваем все активные бонусы с таймерами
+        var activeTimedBonuses = new java.util.ArrayList<>(bonusEndTimes.keySet());
+        for (BonusType type : activeTimedBonuses) {
+            Long endTime = bonusEndTimes.get(type);
+            if (endTime == null) {
+                continue;
+            }
+            long newEnd = endTime + deltaMillis;
+            bonusEndTimes.put(type, newEnd);
+            int remainingSeconds = (int) Math.ceil(Math.max(0, newEnd - now) / 1000.0);
+            lastDisplayedSeconds.put(type, remainingSeconds);
+            updateBonusUI(type, remainingSeconds);
+        }
+
+        // Отдельно для плазменного оружия (использует счетчик выстрелов вместо времени)
+        if (plasmaWeaponActive) {
+            plasmaShotsRemaining += 5;
+            playPlasmaRechargeSound();
+            if (app.getScoreManager() != null) {
+                app.getScoreManager().updateBonusTimer(BonusType.PLASMA_WEAPON, plasmaShotsRemaining);
+            }
+        }
+    }
+
+    private void applyCallBallBonus() {
+        callBallBonusActive = true;
+        playBonusSound(BonusType.CALL_BALL);
+        startBonusTimer(BonusType.CALL_BALL, 50);
+    }
+
+    private void deactivateCallBallBonus() {
+        callBallBonusActive = false;
+        removeBonusTimer(BonusType.CALL_BALL);
     }
     
     private void applyExtraLife() {
@@ -1772,7 +1832,9 @@ public class BonusEffectManager {
         bonusMagnetActive = false;
         penaltyMagnetActive = false;
         scoreRainActive = false;
+        callBallBonusActive = false;
         increasePaddleStacks = 0;
+        removeBonusTimer(BonusType.CALL_BALL);
         
         // Удаляем все защитные стены
         var walls = FXGL.getGameWorld().getEntitiesByType(EntityType.WALL);
@@ -1860,7 +1922,9 @@ public class BonusEffectManager {
         bonusMagnetActive = false;
         penaltyMagnetActive = false;
         scoreRainActive = false;
+        callBallBonusActive = false;
         increasePaddleStacks = 0;
+        removeBonusTimer(BonusType.CALL_BALL);
         
         // Удаляем все защитные стены
         var walls = FXGL.getGameWorld().getEntitiesByType(EntityType.WALL);
@@ -2001,6 +2065,10 @@ public class BonusEffectManager {
 
     public boolean isScoreRainActive() {
         return scoreRainActive;
+    }
+
+    public boolean isCallBallBonusActive() {
+        return callBallBonusActive;
     }
     
     /**

@@ -398,11 +398,6 @@ public class HelpView extends VBox {
         grid.setAlignment(Pos.TOP_LEFT);
         
         for (BonusType bonus : bonuses) {
-            // Пропускаем только RANDOM_BONUS из отображения (LEVEL_PASS теперь показывается)
-            if (bonus == BonusType.RANDOM_BONUS) {
-                continue;
-            }
-            
             javafx.scene.layout.HBox bonusRow = createBonusRow(bonus);
             grid.getChildren().add(bonusRow);
         }
@@ -455,6 +450,10 @@ public class HelpView extends VBox {
         switch (bonusType) {
             case BONUS_SCORE:
                 return "debug.bonuses.bonus.extra_points";
+            case BONUS_SCORE_200:
+                return "debug.bonuses.bonus.extra_points_200";
+            case BONUS_SCORE_500:
+                return "debug.bonuses.bonus.extra_points_500";
             case EXTRA_LIFE:
                 return "debug.bonuses.bonus.extra_life";
             case INCREASE_PADDLE:
@@ -485,6 +484,10 @@ public class HelpView extends VBox {
                 return "debug.bonuses.bonus.level_pass";
             case SCORE_RAIN:
                 return "debug.bonuses.bonus.score_rain";
+            case ADD_FIVE_SECONDS:
+                return "debug.bonuses.bonus.add_five_seconds";
+            case CALL_BALL:
+                return "debug.bonuses.bonus.call_ball";
             case TRICKSTER:
                 return "debug.bonuses.bonus.trickster";
             case RANDOM_BONUS:

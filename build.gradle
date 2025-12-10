@@ -5,18 +5,13 @@ plugins {
 }
 
 repositories {
-    jcenter()
     mavenCentral()
     maven { url 'https://jitpack.io' }
     maven { url 'https://repo1.maven.org/maven2/' }
 }
 
 dependencies {
-    implementation 'org.openjfx:javafx-controls:21'
-    implementation 'org.openjfx:javafx-fxml:21'
-    implementation 'org.openjfx:javafx-media:21'
-    
-    // FXGL game engine
+    // FXGL game engine (includes JavaFX dependencies)
     implementation 'com.github.almasb:fxgl:21.1'
     
     // SQLite database
@@ -71,10 +66,18 @@ task downloadNativeLibraries {
 
 javafx {
     version = "21"
-    modules = ['javafx.controls', 'javafx.fxml', 'javafx.media']
+    modules = ['javafx.controls', 'javafx.fxml', 'javafx.media', 'javafx.graphics', 'javafx.base']
 }
 
 application {
+    mainClass = 'com.arcadeblocks.ArcadeBlocksApp'
+}
+
+// Task для запуска через fat JAR (обходит проблемы с JavaFX модулями)
+task runJar(type: JavaExec, dependsOn: jar) {
+    description = 'Запуск игры через fat JAR'
+    group = 'application'
+    classpath = files("build/libs/${project.name}.jar")
     mainClass = 'com.arcadeblocks.ArcadeBlocksApp'
 }
 

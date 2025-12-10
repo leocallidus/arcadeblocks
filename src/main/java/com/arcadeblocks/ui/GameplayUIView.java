@@ -297,7 +297,7 @@ public class GameplayUIView extends VBox {
             levelValueLabel.setText(String.valueOf(currentLevel));
         }
         if (levelNameLabel != null) {
-            // Получаем локализованное название уровня напрямую из LevelConfig
+            // Получаем локализованное название уровня (обычного или бонусного)
             String displayName = getLocalizedLevelName(currentLevel);
             // Добавляем приписку (DEBUG) / (ОТЛАДКА) если уровень запущен в debug режиме
             if (app != null && app.isDebugMode()) {
@@ -312,13 +312,22 @@ public class GameplayUIView extends VBox {
      * Получить локализованное название уровня (только название, без префикса "Уровень X:" или "Level X:")
      */
     private String getLocalizedLevelName(int levelNumber) {
-        com.arcadeblocks.config.LevelConfig.LevelData levelData = 
-            com.arcadeblocks.config.LevelConfig.getLevel(levelNumber);
-        if (levelData == null) {
-            return "";
+        String fullName;
+        com.arcadeblocks.config.LevelConfig.LevelData levelData = null;
+        if (com.arcadeblocks.config.BonusLevelConfig.isBonusLevel(levelNumber)) {
+            var bonusData = com.arcadeblocks.config.BonusLevelConfig.getLevelData(levelNumber);
+            if (bonusData == null) {
+                return "";
+            }
+            fullName = com.arcadeblocks.localization.LocalizationManager.getInstance()
+                .getOrDefault(bonusData.getNameKey(), bonusData.getName());
+        } else {
+            levelData = com.arcadeblocks.config.LevelConfig.getLevel(levelNumber);
+            if (levelData == null) {
+                return "";
+            }
+            fullName = levelData.getName();
         }
-        
-        String fullName = levelData.getName();
         
         // Извлекаем часть после "Уровень X:" или "Level X:" для русской и английской локализации
         // Пробуем найти двоеточие после номера уровня
@@ -334,8 +343,19 @@ public class GameplayUIView extends VBox {
                 displayName = fullName;
             }
         }
-        
-        return displayName.isEmpty() ? fullName : displayName;
+
+        boolean isLBreakout = levelData != null 
+            && levelData.getLevelFormat() == com.arcadeblocks.config.LevelConfig.LevelFormat.LBREAKOUT;
+        boolean missingTitle = displayName.isBlank() || (fullName != null && fullName.trim().endsWith(":"));
+        if (isLBreakout) {
+            String fallbackTitle = com.arcadeblocks.config.LevelConfig.getLBreakoutHdTitle(levelNumber);
+            if (fallbackTitle != null && !fallbackTitle.isBlank()) {
+                // HUD всегда показывает эталонное название LBreakoutHD, чтобы не зависеть от локализации/ключей
+                displayName = fallbackTitle;
+            }
+        }
+
+        return displayName.isBlank() ? fullName : displayName;
     }
     
     public void refreshHighScores() {
