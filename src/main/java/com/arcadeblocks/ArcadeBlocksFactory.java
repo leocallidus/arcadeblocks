@@ -123,11 +123,19 @@ public class ArcadeBlocksFactory implements EntityFactory {
         PhysicsComponent physics = new PhysicsComponent();
         physics.setBodyType(BodyType.DYNAMIC);
         
+<<<<<<< HEAD
         var texture = TextureUtils.loadScaledTexture("bonus_score.png", 39);
         
         return entityBuilder(data)
             .type(EntityType.POWERUP)
             .bbox(new HitBox(BoundingShape.circle(20)))
+=======
+        var texture = TextureUtils.loadScaledTexture("bonus_score.png", 42);
+        
+        return entityBuilder(data)
+            .type(EntityType.POWERUP)
+            .bbox(new HitBox(BoundingShape.circle(21)))
+>>>>>>> origin/main
             .view(texture)
             .with(physics)
             .collidable()
@@ -143,7 +151,11 @@ public class ArcadeBlocksFactory implements EntityFactory {
         }
         
         // Загружаем текстуру бонуса (масштаб под 1024px исходники)
+<<<<<<< HEAD
         var texture = TextureUtils.loadScaledTexture(bonusType.getTextureName(), 81, 42);
+=======
+        var texture = TextureUtils.loadScaledTexture(bonusType.getTextureName(), 85, 44);
+>>>>>>> origin/main
 
         boolean invisibleCapsule = false;
         try {
@@ -159,7 +171,11 @@ public class ArcadeBlocksFactory implements EntityFactory {
         
         Entity entity = entityBuilder(data)
             .type(EntityType.BONUS)
+<<<<<<< HEAD
             .bbox(new HitBox(BoundingShape.box(81, 42)))
+=======
+            .bbox(new HitBox(BoundingShape.box(85, 44)))
+>>>>>>> origin/main
             .view(texture)
             .collidable()
             .build();
