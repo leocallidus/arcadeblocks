@@ -39,6 +39,7 @@ public class GameConfig {
     // Скорости
     public static final double PADDLE_SPEED = 400.0;
     public static final double BALL_SPEED = 650.0;  // Увеличили с 500 до 750 (1.5x) для оптимальной скорости
+    public static final double DEFAULT_TURBO_SPEED = 1.5;
     public static final double BOSS_PROJECTILE_SPEED = 200.0;
     
     // Игровые константы
@@ -94,8 +95,9 @@ public class GameConfig {
         put("MOVE_LEFT", "LEFT");
         put("MOVE_RIGHT", "RIGHT");
         put("LAUNCH", "SPACE");
-        put("CALL_BALL", "V");
+        put("CALL_BALL", "B");
         put("TURBO_PADDLE", "X");
+        put("TURBO_BALL", "V");
         put("PAUSE", "ESCAPE");
         put("PLASMA_WEAPON", "Z");
     }};

@@ -98,6 +98,22 @@ public final class StoryConfig {
             "textures/chapter12_background.png",
             "music/chapter12_theme.mp3",
             "chapter.story.chapter12"
+        ),
+        // Bonus Chapter I: Symphony of Chaos
+        new ChapterStoryData(
+            101,  // Bonus chapter number
+            1001, // First bonus level
+            "textures/chapter1_bonus_background.png",
+            "music/chapter1_bonus_theme.mp3",
+            "bonus.chapter.story.1"
+        ),
+        // LBreakout1 campaign intro
+        new ChapterStoryData(
+            201,
+            5000,
+            "textures/chapter_lbreakout1.png",
+            "",
+            "chapter.story.lbreakout1"
         )
     );
 
@@ -147,5 +163,3 @@ public final class StoryConfig {
         return new GameProgress(Collections.emptySet(), true);
     }
 }
-
-

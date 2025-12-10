@@ -147,7 +147,8 @@ public class ArcadeBlocksFactory implements EntityFactory {
 
         boolean invisibleCapsule = false;
         try {
-            invisibleCapsule = FXGL.geti("level") == 100;
+            int lvl = FXGL.geti("level");
+            invisibleCapsule = (lvl == 100 || lvl == 1021);
         } catch (Exception ignored) {
         }
 
@@ -214,10 +215,19 @@ public class ArcadeBlocksFactory implements EntityFactory {
         if (isExtraWall) {
             // Используем текстуру для дополнительной стены
             var texture = FXGL.texture("extra_wall.png", width, height);
+            
+            // Добавляем PhysicsComponent для корректной работы CCD (предотвращение туннелирования)
+            PhysicsComponent physics = new PhysicsComponent();
+            physics.setBodyType(BodyType.STATIC);
+            physics.setFixtureDef(new com.almasb.fxgl.physics.box2d.dynamics.FixtureDef()
+                .friction(0.0f)
+                .restitution(1.0f));
+            
             return entityBuilder(data)
                 .type(EntityType.WALL)
                 .bbox(new HitBox(BoundingShape.box(width, height)))
                 .view(texture)
+                .with(physics)
                 .collidable()
                 .build();
         } else {

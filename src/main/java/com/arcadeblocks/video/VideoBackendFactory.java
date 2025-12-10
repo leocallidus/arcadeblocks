@@ -1,25 +1,15 @@
 package com.arcadeblocks.video;
 
 /**
- * Factory for creating video player backends
- * Uses VLCJ exclusively - JavaFX Media support has been removed
+ * Factory for creating video player backends.
+ * Tries VLCJ first, then falls back to JavaFX Media if VLC недоступен/ломается.
  */
 public class VideoBackendFactory {
     
-    public enum BackendType {
-        VLC_ONLY,  // Use VLC only, fail if unavailable
-        STUB       // Use stub/no-op backend when VLC unavailable
-    }
-    
-    private BackendType preferredBackend = BackendType.VLC_ONLY; // Try VLC first, fall back to STUB if unavailable
     private boolean vlcAvailable = false;
     
     public VideoBackendFactory() {
         checkVlcAvailability();
-        // If VLC is not available, automatically switch to STUB
-        if (!vlcAvailable) {
-            preferredBackend = BackendType.STUB;
-        }
     }
     
     /**
@@ -32,89 +22,38 @@ public class VideoBackendFactory {
         } else {
             vlcAvailable = true;
         }
-        
-        if (vlcAvailable) {
-            // System.out.println("VLC backend available");
-        } else {
-            // System.out.println("VLC backend not available, will use JavaFX fallback");
-            // System.out.println("  Reason: " + vlcContext.getErrorMessage());
-        }
     }
     
-    /**
-     * Set preferred backend type
-     */
-    public void setPreferredBackend(BackendType backend) {
-        this.preferredBackend = backend;
-    }
-    
-    /**
-     * Get preferred backend type
-     */
-    public BackendType getPreferredBackend() {
-        return preferredBackend;
-    }
-    
-    /**
-     * Check if VLC is available
-     */
     public boolean isVlcAvailable() {
         return vlcAvailable;
     }
     
     /**
-     * Create video player backend based on configuration
-     * @return VideoPlayerBackend instance (never throws exception, falls back to stub)
+     * Create video player backend.
+     * Priority: VLCJ → JavaFX Media. Throws if both fail.
      */
     public VideoPlayerBackend createBackend() {
-        try {
-            switch (preferredBackend) {
-                case VLC_ONLY:
-                    if (!vlcAvailable) {
-                        System.err.println("VLC backend requested but not available: " + 
-                            VlcContext.getInstance().getErrorMessage());
-                        // Fall back to stub instead of throwing exception
-                        return new StubVideoBackend();
-                    }
-                    // Double-check VLC initialization before creating backend
-                    VlcContext vlcContext = VlcContext.getInstance();
-                    if (!vlcContext.isInitialized()) {
-                        vlcAvailable = vlcContext.initialize();
-                        if (!vlcAvailable) {
-                            System.err.println("VLC backend initialization failed: " + vlcContext.getErrorMessage());
-                            return new StubVideoBackend();
-                        }
-                    }
-                    // System.out.println("Создание VLC backend...");
+        // Try VLC first if available
+        if (vlcAvailable) {
+            try {
+                VlcContext vlcContext = VlcContext.getInstance();
+                if (!vlcContext.isInitialized()) {
+                    vlcAvailable = vlcContext.initialize();
+                }
+                if (vlcAvailable) {
                     return new VlcjMediaBackend();
-                    
-                case STUB:
-                    // Return a stub/no-op backend when VLC is unavailable
-                    // System.out.println("Создание Stub backend...");
-                    return new StubVideoBackend();
-                    
-                default:
-                    if (vlcAvailable) {
-                        // Double-check VLC initialization before creating backend
-                        VlcContext vlcCtx = VlcContext.getInstance();
-                        if (!vlcCtx.isInitialized()) {
-                            vlcAvailable = vlcCtx.initialize();
-                            if (!vlcAvailable) {
-                                // System.out.println("VLC инициализация не удалась, создание Stub backend...");
-                                return new StubVideoBackend();
-                            }
-                        }
-                        // System.out.println("Создание VLC backend...");
-                        return new VlcjMediaBackend();
-                    } else {
-                        // System.out.println("VLC недоступен, создание Stub backend...");
-                        return new StubVideoBackend();
-                    }
+                }
+            } catch (Exception e) {
+                System.err.println("VLC backend failed, falling back to JavaFX Media: " + e.getMessage());
             }
+        }
+        
+        // Fallback: JavaFX Media
+        try {
+            return new JavaFxMediaBackend();
         } catch (Exception e) {
-            System.err.println("Error creating video backend: " + e.getMessage());
-            // Always fall back to stub backend on any error
-            return new StubVideoBackend();
+            System.err.println("JavaFX Media backend failed: " + e.getMessage());
+            throw new IllegalStateException("No available video backend (VLC and JavaFX Media failed)", e);
         }
     }
     
@@ -124,7 +63,6 @@ public class VideoBackendFactory {
     public String getBackendInfo() {
         StringBuilder info = new StringBuilder();
         info.append("Video Backend Configuration:\n");
-        info.append("  Preferred: ").append(preferredBackend).append("\n");
         info.append("  VLC Available: ").append(vlcAvailable).append("\n");
         if (vlcAvailable) {
             VlcContext ctx = VlcContext.getInstance();

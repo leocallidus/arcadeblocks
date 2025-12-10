@@ -10,6 +10,10 @@ import java.util.List;
 public enum BonusType {
     // Позитивные бонусы
     BONUS_SCORE("bonus_score.png", "Дополнительные очки", true),
+    BONUS_SCORE_200("bonus_score200.png", "+200 очков", true),
+    BONUS_SCORE_500("bonus_score500.png", "+500 очков", true),
+    ADD_FIVE_SECONDS("bonus_add_five_second.png", "+5 секунд ко всем активным бонусам", true),
+    CALL_BALL("call_ball_to_paddle_bonus.png", "Притянуть мяч к ракетке", true),
     EXTRA_LIFE("extra_life.png", "Дополнительная жизнь", true),
     INCREASE_PADDLE("increase_paddle.png", "Увеличение ракетки", true),
     STICKY_PADDLE("sticky_paddle.png", "Липкая ракетка", true),
@@ -290,7 +294,12 @@ public enum BonusType {
     public static List<BonusType> getEnabledPositiveBonuses() {
         List<BonusType> enabledBonuses = new ArrayList<>();
         for (BonusType bonus : values()) {
-            if (bonus.isPositive() && BonusConfig.isBonusEnabled(bonus.name().toLowerCase())) {
+            String key = bonus.name().toLowerCase();
+            // Приводим новые бонусы очков к основному флагу bonus_score
+            if (key.equals("bonus_score_200") || key.equals("bonus_score_500")) {
+                key = "bonus_score";
+            }
+            if (bonus.isPositive() && BonusConfig.isBonusEnabled(key)) {
                 enabledBonuses.add(bonus);
             }
         }

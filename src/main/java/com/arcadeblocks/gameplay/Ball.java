@@ -56,6 +56,7 @@ public class Ball extends Component {
     // Невесомость - поддержание постоянной скорости
     private double targetSpeed = GameConfig.BALL_SPEED; // Целевая скорость мяча
     private boolean maintainConstantSpeed = true; // Флаг для поддержания постоянной скорости
+    private boolean turboMode = false; // Турбо-режим мяча
     private long lastBossHitTime = 0;
     private long lastAttractionBlockedSoundTime = 0; // Время последнего проигрывания звука блокировки притяжения
     private static final long ATTRACTION_BLOCKED_SOUND_COOLDOWN_MS = 1000; // 1 секунда между звуками
@@ -67,6 +68,48 @@ public class Ball extends Component {
     private BodyType pausedBodyType = BodyType.DYNAMIC;
     private boolean pausedMaintainConstantSpeed = true;
     
+    public void setTurboMode(boolean enabled) {
+        if (this.turboMode == enabled) {
+            return; // No change
+        }
+        this.turboMode = enabled;
+
+        // If the ball is not attached, immediately adjust its speed
+        if (!attachedToPaddle && physics != null) {
+            try {
+                Point2D currentVelocity = physics.getLinearVelocity();
+                double currentSpeed = currentVelocity.magnitude();
+
+                if (currentSpeed > 0.0001) { // Avoid division by zero
+                    com.arcadeblocks.ArcadeBlocksApp app = (com.arcadeblocks.ArcadeBlocksApp) FXGL.getApp();
+                    double newTurboMultiplier = (enabled && app != null) ? app.getTurboSpeed() : 1.0;
+                    
+                    // The base speed considers 'speedMultiplier' but not 'turboMode'
+                    // because getTurboMultiplier() already reflects the new 'turboMode' state
+                    double baseSpeedForCalculation = GameConfig.BALL_SPEED * speedMultiplier; 
+                    double newMagnitude = baseSpeedForCalculation * newTurboMultiplier;
+
+                    // Preserve direction, apply new magnitude
+                    Point2D newVelocity = currentVelocity.normalize().multiply(newMagnitude);
+                    setPhysicsVelocity(newVelocity.getX(), newVelocity.getY());
+                }
+            } catch (IllegalStateException e) {
+                // Physics might not be initialized yet, or entity is being removed
+                // Ignore, onUpdate will handle it
+            }
+        }
+    }
+
+    public boolean isTurboMode() {
+        return turboMode;
+    }
+
+    private double getTurboMultiplier() {
+        if (!turboMode) return 1.0;
+        com.arcadeblocks.ArcadeBlocksApp app = (com.arcadeblocks.ArcadeBlocksApp) FXGL.getApp();
+        return app != null ? app.getTurboSpeed() : 1.5;
+    }
+
     @Override
     public void onAdded() {
         physics = entity.getComponent(PhysicsComponent.class);
@@ -217,7 +260,7 @@ public class Ball extends Component {
                             lastCenterY = entity.getCenter().getY();
                             
                     // Запуск мяча с учетом позиции относительно ракетки
-                    double launchSpeed = GameConfig.BALL_SPEED * 1.3 * speedMultiplier; // Используем конфигурацию
+                    double launchSpeed = GameConfig.BALL_SPEED * 1.3 * speedMultiplier * getTurboMultiplier(); // Используем конфигурацию
                     
                     double paddleWidth = Math.max(1.0, paddleEntity.getWidth());
                     double halfWidth = paddleWidth / 2.0;
@@ -522,7 +565,7 @@ public class Ball extends Component {
         double angle = ratio * maxAngle;
         
         // Базовая скорость отскока с учетом множителя
-        double bounceSpeed = GameConfig.BALL_SPEED * 1.1 * speedMultiplier;
+        double bounceSpeed = GameConfig.BALL_SPEED * 1.1 * speedMultiplier * getTurboMultiplier();
         
         // Вычисляем скорости
         double velocityX = Math.sin(angle) * bounceSpeed;
@@ -738,39 +781,11 @@ public class Ball extends Component {
         // Проверяем, не активны ли эффекты, которые должны отключать притяжение
         com.arcadeblocks.ArcadeBlocksApp app = (com.arcadeblocks.ArcadeBlocksApp) FXGL.getApp();
         if (app != null) {
-            // КРИТИЧНО: На легкой сложности притягивание работает ВСЕГДА, без исключений
-            boolean isEasy = app.getEffectiveDifficulty() == com.arcadeblocks.config.DifficultyLevel.EASY;
-            
-            if (!isEasy) {
-                // КРИТИЧНО: Отключаем притяжение на хардкорной сложности
-                if (app.getEffectiveDifficulty() == com.arcadeblocks.config.DifficultyLevel.HARDCORE) {
-                    return;
-                }
-                
-                if (app.getBonusEffectManager() != null) {
-                    com.arcadeblocks.gameplay.BonusEffectManager bonusManager = app.getBonusEffectManager();
-                    // Отключаем притяжение, если активны: темнота, замороженная ракетка, призрачная ракетка или хаотичные мячи
-                    if (bonusManager.isDarknessActive() || 
-                        bonusManager.isFrozenPaddleActive() || 
-                        bonusManager.isInvisiblePaddleActive() ||
-                        bonusManager.isChaoticBallsActive()) {
-                        
-                        // Проигрываем звук блокировки только для темноты и только раз в секунду
-                        if (bonusManager.isDarknessActive()) {
-                            long currentTime = System.currentTimeMillis();
-                            if (currentTime - lastAttractionBlockedSoundTime >= ATTRACTION_BLOCKED_SOUND_COOLDOWN_MS) {
-                                lastAttractionBlockedSoundTime = currentTime;
-                                try {
-                                    app.getAudioManager().playSFX("sounds/call_to_paddle_block.wav");
-                                } catch (Exception e) {
-                                    // Игнорируем ошибки воспроизведения звука
-                                }
-                            }
-                        }
-                        
-                        return;
-                    }
-                }
+            com.arcadeblocks.gameplay.BonusEffectManager bonusManager = app.getBonusEffectManager();
+            boolean callBallBonus = bonusManager != null && bonusManager.isCallBallBonusActive();
+            // Притягиваем только при активном бонусе, поэтому дополнительные ограничения не применяем
+            if (!callBallBonus) {
+                return;
             }
         }
 
@@ -786,8 +801,8 @@ public class Ball extends Component {
             return;
         }
 
-        // Анализируем препятствия и корректируем направление
-        Point2D direction = adjustDirectionToAvoidBricks(ballCenter, toPaddle.normalize(), paddleCenter);
+        // Направление прямо к ракетке без обхода препятствий
+        Point2D direction = toPaddle.normalize();
         
         Point2D currentVelocity;
         try {
@@ -1153,13 +1168,16 @@ public class Ball extends Component {
             FXGL.inc("score", points);
         // System.out.println("+ " + points + " очков за кирпич!");
             
-            // Воспроизводим звук разрушения кирпича
-            try {
-                ((com.arcadeblocks.ArcadeBlocksApp) FXGL.getApp()).playBrickHitSound();
-            } catch (Exception e) {}
-            
-            // Используем метод destroy() из Brick для анимации разрушения
-            brickComponent.destroy();
+            // Используем специальный метод для энергетического мяча
+            if (isEnergyBall) {
+                brickComponent.destroyByEnergyBall();
+            } else {
+                // Воспроизводим звук разрушения кирпича
+                try {
+                    ((com.arcadeblocks.ArcadeBlocksApp) FXGL.getApp()).playBrickHitSound();
+                } catch (Exception e) {}
+                brickComponent.destroy();
+            }
             
         // System.out.println("Энергетический мяч разрушил кирпич!");
         }
@@ -1212,6 +1230,7 @@ public class Ball extends Component {
         isWeakBall = false;
         isChaoticBall = false;
         sizeMultiplier = 1.0; // Восстанавливаем обычный размер
+        turboMode = false; // Сбрасываем турбо-режим
         // НЕ сбрасываем isExtraBall - дополнительный мяч должен оставаться дополнительным
         launchTime = 0; // Сбрасываем время запуска
         maintainConstantSpeed = true; // Включаем невесомость по умолчанию
@@ -1341,7 +1360,7 @@ public class Ball extends Component {
         // Если мяч движется (скорость больше минимального порога)
         if (currentSpeed > 10.0) {
             // Вычисляем коэффициент для достижения целевой скорости
-            double targetSpeedWithMultiplier = targetSpeed * speedMultiplier;
+            double targetSpeedWithMultiplier = targetSpeed * speedMultiplier * getTurboMultiplier();
             double speedRatio = targetSpeedWithMultiplier / currentSpeed;
             
             // Плавная корректировка скорости для избежания резких изменений
@@ -1502,12 +1521,17 @@ public class Ball extends Component {
 
                     alreadyHit.add(brick);
                     
-                    // Наносим урон кирпичу (используем уже полученный brickComponent)
-                    int actualDamage = isWeakBall ? 1 : 2;
-                    brickComponent.takeDamage(actualDamage);
-                    
-                    if (isExplosionBall) {
-                        explodeNearbyBricks(brick, actualDamage);
+                    // Для энергетического мяча - мгновенное разрушение со специальной анимацией
+                    if (isEnergyBall) {
+                        brickComponent.destroyByEnergyBall();
+                    } else {
+                        // Наносим урон кирпичу (используем уже полученный brickComponent)
+                        int actualDamage = isWeakBall ? 1 : 2;
+                        brickComponent.takeDamage(actualDamage);
+                        
+                        if (isExplosionBall) {
+                            explodeNearbyBricks(brick, actualDamage);
+                        }
                     }
                     
                     lastProcessedBrick = brick;

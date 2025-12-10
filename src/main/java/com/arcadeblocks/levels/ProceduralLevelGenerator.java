@@ -48,12 +48,15 @@ public final class ProceduralLevelGenerator {
                     continue;
                 }
                 BrickStyle style = palette.getOrDefault(token, palette.getOrDefault('A', BrickStyle.DEFAULT_STYLE));
+                boolean isExplosive = "explosive".equals(style.color());
                 bricks.add(new LevelLoader.BrickDefinition(
                     row,
                     col,
                     style.color(),
                     style.health(),
-                    style.points()
+                    style.points(),
+                    isExplosive,
+                    true
                 ));
             }
         }
@@ -144,7 +147,9 @@ public final class ProceduralLevelGenerator {
                         col,
                         "indestructible",
                         Math.max(5, palette.coreHealth() + parameters.additionalHealth()),
-                        palette.basePoints() + 220
+                        palette.basePoints() + 220,
+                        false,
+                        true
                     ));
                     continue;
                 }
@@ -155,7 +160,9 @@ public final class ProceduralLevelGenerator {
                         col,
                         palette.coreColor(),
                         palette.coreHealth() + parameters.additionalHealth(),
-                        palette.basePoints() + 200
+                        palette.basePoints() + 200,
+                        false,
+                        true
                     ));
                     continue;
                 }
@@ -166,7 +173,9 @@ public final class ProceduralLevelGenerator {
                         col,
                         palette.shieldColor(),
                         Math.max(1, palette.coreHealth() + parameters.additionalHealth() - 1),
-                        palette.basePoints() + 150
+                        palette.basePoints() + 150,
+                        false,
+                        true
                     ));
                     continue;
                 }
@@ -180,7 +189,9 @@ public final class ProceduralLevelGenerator {
                         col,
                         color,
                         Math.max(2, palette.accentHealth() + parameters.additionalHealth()),
-                        palette.basePoints() + 120
+                        palette.basePoints() + 120,
+                        false,
+                        true
                     ));
                     continue;
                 }
@@ -195,7 +206,9 @@ public final class ProceduralLevelGenerator {
                         col,
                         "explosive",
                         1,
-                        palette.basePoints() + 180
+                        palette.basePoints() + 180,
+                        true,
+                        true
                     ));
                     continue;
                 }
@@ -211,7 +224,9 @@ public final class ProceduralLevelGenerator {
                         col,
                         color,
                         health,
-                        points
+                        points,
+                        false,
+                        true
                     ));
                 }
             }

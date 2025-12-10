@@ -33,6 +33,7 @@ public class Paddle extends Component {
     // Турбо-режим ракетки
     private boolean turboMode = false;
     private double originalSpeed = GameConfig.PADDLE_SPEED;
+    private double turboMultiplier = 2.0;
     
     // Убрано управление мышью
     
@@ -258,6 +259,16 @@ public class Paddle extends Component {
     // ========== МЕТОДЫ ДЛЯ ТУРБО-РЕЖИМА ==========
     
     /**
+     * Установить множитель скорости турбо-режима
+     */
+    public void setTurboMultiplier(double multiplier) {
+        this.turboMultiplier = multiplier;
+        if (turboMode) {
+            this.speed = originalSpeed * turboMultiplier;
+        }
+    }
+    
+    /**
      * Включить/выключить турбо-режим ракетки
      */
     public void setTurboMode(boolean turbo) {
@@ -265,7 +276,7 @@ public class Paddle extends Component {
         if (this.turboMode != turbo) {
             this.turboMode = turbo;
             if (turbo) {
-                this.speed = originalSpeed * 2.0; // Ускоряем в 2 раза
+                this.speed = originalSpeed * turboMultiplier;
             } else {
                 this.speed = originalSpeed; // Возвращаем обычную скорость
             }

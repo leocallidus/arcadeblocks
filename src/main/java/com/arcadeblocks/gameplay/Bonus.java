@@ -229,6 +229,8 @@ public class Bonus extends Component {
         // Получаем менеджер эффектов из основного приложения
         com.arcadeblocks.ArcadeBlocksApp app = (com.arcadeblocks.ArcadeBlocksApp) FXGL.getApp();
         if (app != null) {
+            app.onBonusCollected(bonusType);
+
             // Add score based on bonus type
             com.arcadeblocks.gameplay.ScoreManager scoreManager = app.getScoreManager();
             if (scoreManager != null) {

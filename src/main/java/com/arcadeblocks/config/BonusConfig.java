@@ -34,9 +34,17 @@ public class BonusConfig {
     
     /** Дополнительный мяч */
     public static boolean BONUS_BALL_ENABLED = true;
-    
+
     /** Дополнительные очки */
     public static boolean BONUS_SCORE_ENABLED = true;
+    /** Дополнительные очки (+200) */
+    public static boolean BONUS_SCORE_200_ENABLED = true;
+    /** Дополнительные очки (+500) */
+    public static boolean BONUS_SCORE_500_ENABLED = true;
+    /** Продление всех активных бонусов на 5 секунд */
+    public static boolean ADD_FIVE_SECONDS_ENABLED = true;
+    /** Притягивание мяча к ракетке */
+    public static boolean CALL_BALL_ENABLED = true;
     
     /** Дополнительная жизнь */
     public static boolean EXTRA_LIFE_ENABLED = true;
@@ -131,7 +139,19 @@ public static boolean BAD_LUCK_ENABLED = true;
         switch (bonusName.toLowerCase()) {
             // Позитивные бонусы
             case "bonus_score":
+            case "bonus_score_200":
+            case "bonus_score_500":
                 return BONUS_SCORE_ENABLED;
+            case "bonus_score_200_enabled":
+                return BONUS_SCORE_200_ENABLED;
+            case "bonus_score_500_enabled":
+                return BONUS_SCORE_500_ENABLED;
+            case "add_five_seconds":
+            case "add_five_seconds_enabled":
+                return ADD_FIVE_SECONDS_ENABLED;
+            case "call_ball":
+            case "call_ball_enabled":
+                return CALL_BALL_ENABLED;
             case "extra_life":
                 return EXTRA_LIFE_ENABLED;
             case "increase_paddle":
@@ -274,6 +294,10 @@ public static boolean BAD_LUCK_ENABLED = true;
         if (WEAK_BALLS_ENABLED) positiveCount++;
         if (BONUS_BALL_ENABLED) positiveCount++;
         if (BONUS_SCORE_ENABLED) positiveCount++;
+        if (BONUS_SCORE_200_ENABLED) positiveCount++;
+        if (BONUS_SCORE_500_ENABLED) positiveCount++;
+        if (ADD_FIVE_SECONDS_ENABLED) positiveCount++;
+        if (CALL_BALL_ENABLED) positiveCount++;
         if (EXTRA_LIFE_ENABLED) positiveCount++;
         if (BONUS_WALL_ENABLED) positiveCount++;
         if (BONUS_MAGNET_ENABLED) positiveCount++;
@@ -349,6 +373,18 @@ public static boolean BAD_LUCK_ENABLED = true;
                 break;
             case "BONUS_SCORE_ENABLED":
                 BONUS_SCORE_ENABLED = enabled;
+                break;
+            case "BONUS_SCORE_200_ENABLED":
+                BONUS_SCORE_200_ENABLED = enabled;
+                break;
+            case "BONUS_SCORE_500_ENABLED":
+                BONUS_SCORE_500_ENABLED = enabled;
+                break;
+            case "ADD_FIVE_SECONDS_ENABLED":
+                ADD_FIVE_SECONDS_ENABLED = enabled;
+                break;
+            case "CALL_BALL_ENABLED":
+                CALL_BALL_ENABLED = enabled;
                 break;
             case "EXTRA_LIFE_ENABLED":
                 EXTRA_LIFE_ENABLED = enabled;
@@ -440,6 +476,14 @@ public static boolean BAD_LUCK_ENABLED = true;
                 return BONUS_BALL_ENABLED;
             case "BONUS_SCORE_ENABLED":
                 return BONUS_SCORE_ENABLED;
+            case "BONUS_SCORE_200_ENABLED":
+                return BONUS_SCORE_200_ENABLED;
+            case "BONUS_SCORE_500_ENABLED":
+                return BONUS_SCORE_500_ENABLED;
+            case "ADD_FIVE_SECONDS_ENABLED":
+                return ADD_FIVE_SECONDS_ENABLED;
+            case "CALL_BALL_ENABLED":
+                return CALL_BALL_ENABLED;
             case "EXTRA_LIFE_ENABLED":
                 return EXTRA_LIFE_ENABLED;
             case "BONUS_WALL_ENABLED":

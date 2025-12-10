@@ -4,6 +4,7 @@ import com.almasb.fxgl.dsl.FXGL;
 import com.arcadeblocks.ArcadeBlocksApp;
 import com.arcadeblocks.config.GameConfig;
 import com.arcadeblocks.config.LevelConfig;
+import com.arcadeblocks.config.BonusLevelConfig;
 import com.arcadeblocks.localization.LocalizationManager;
 import com.arcadeblocks.ui.util.ResponsiveLayoutHelper;
 import com.arcadeblocks.ui.util.UINodeCleanup;
@@ -394,6 +395,26 @@ public class DebugLevelsView extends VBox {
                 chapter.getAccentColorHex(),
                 chapter.getStartLevel(),
                 chapter.getEndLevel()
+            );
+            container.getChildren().add(section);
+        }
+        
+        // Секции бонусных глав (Arcade Blocks Bonus)
+        for (BonusLevelConfig.BonusChapter bonusChapter : BonusLevelConfig.getChapters()) {
+            String rangeText = bonusChapter.getStartLevel() == bonusChapter.getEndLevel()
+                ? String.valueOf(bonusChapter.getStartLevel())
+                : bonusChapter.getStartLevel() + "-" + bonusChapter.getEndLevel();
+            String sectionTitle = localizationManager.format(
+                "debug.levels.section.bonus.format",
+                bonusChapter.getRomanNumeral(),
+                bonusChapter.getTitle(),
+                rangeText
+            );
+            VBox section = createLevelSection(
+                sectionTitle,
+                bonusChapter.getAccentColorHex(),
+                bonusChapter.getStartLevel(),
+                bonusChapter.getEndLevel()
             );
             container.getChildren().add(section);
         }
@@ -913,48 +934,50 @@ public class DebugLevelsView extends VBox {
         
         appRef.getAudioManager().playSFXByName("menu_select");
         
+        boolean isBonusLevel = BonusLevelConfig.isBonusLevel(levelNumber);
         LevelConfig.LevelData levelData = LevelConfig.getLevel(levelNumber);
-        if (levelData != null) {
-        // System.out.println("DEBUG: Выбран уровень " + levelNumber + " - " + levelData.getName());
-            
-            // Закрываем экран выбора уровней без уведомления callback (это обнулит app в cleanup())
-            // Это предотвращает повторное открытие debug меню при выборе уровня
-            closeDebugLevelsView(false);
-            
-            // КРИТИЧНО: Запускаем уровень через Platform.runLater(), чтобы дать время на полную очистку
-            // DebugLevelsView перед созданием новых UI элементов. Это предотвращает утечки памяти
-            // при переходе из debug меню в уровень, так как гарантирует правильный порядок:
-            // 1. cleanup() и removeUINode() выполняются синхронно
-            // 2. JavaFX обрабатывает удаление ноды
-            // 3. Только после этого запускается новый уровень
-            final int levelToStart = levelNumber;
-            Platform.runLater(() -> {
-                // КРИТИЧНО: Принудительно очищаем все активные видео ресурсы перед запуском уровня
-                // Это предотвращает утечки памяти от видео оверлеев и MediaPlayer'ов
-                try {
-                    java.lang.reflect.Method cleanupMethod = appRef.getClass().getDeclaredMethod("cleanupActiveVideoResources");
-                    cleanupMethod.setAccessible(true);
-                    cleanupMethod.invoke(appRef);
-                } catch (Exception e) {
-                    System.err.println("Warning: Could not cleanup video resources before debug level start: " + e.getMessage());
-                }
-                
-                // КРИТИЧНО: Принудительно очищаем все UI ноды для предотвращения утечек памяти
-                try {
-                    java.lang.reflect.Method clearUIMethod = appRef.getClass().getDeclaredMethod("clearUINodesSafely");
-                    clearUIMethod.setAccessible(true);
-                    clearUIMethod.invoke(appRef);
-                } catch (Exception e) {
-                    System.err.println("Warning: Could not cleanup UI nodes before debug level start: " + e.getMessage());
-                }
-                
-                // Используем сохраненную ссылку, так как app уже обнулен в cleanup()
-                appRef.startDebugLevel(levelToStart);
-            });
-        } else {
+        BonusLevelConfig.BonusLevelData bonusData = isBonusLevel ? BonusLevelConfig.getLevelData(levelNumber) : null;
+
+        if (!isBonusLevel && levelData == null) {
             String errorMessage = localizationManager.format("debug.levels.error.not_found", levelNumber);
             System.err.println(errorMessage);
+            return;
         }
+        
+        // Закрываем экран выбора уровней без уведомления callback (это обнулит app в cleanup())
+        // Это предотвращает повторное открытие debug меню при выборе уровня
+        closeDebugLevelsView(false);
+        
+        // КРИТИЧНО: Запускаем уровень через Platform.runLater(), чтобы дать время на полную очистку
+        // DebugLevelsView перед созданием новых UI элементов. Это предотвращает утечки памяти
+        // при переходе из debug меню в уровень, так как гарантирует правильный порядок:
+        // 1. cleanup() и removeUINode() выполняются синхронно
+        // 2. JavaFX обрабатывает удаление ноды
+        // 3. Только после этого запускается новый уровень
+        final int levelToStart = levelNumber;
+        Platform.runLater(() -> {
+            // КРИТИЧНО: Принудительно очищаем все активные видео ресурсы перед запуском уровня
+            // Это предотвращает утечки памяти от видео оверлеев и MediaPlayer'ов
+            try {
+                java.lang.reflect.Method cleanupMethod = appRef.getClass().getDeclaredMethod("cleanupActiveVideoResources");
+                cleanupMethod.setAccessible(true);
+                cleanupMethod.invoke(appRef);
+            } catch (Exception e) {
+                System.err.println("Warning: Could not cleanup video resources before debug level start: " + e.getMessage());
+            }
+            
+            // КРИТИЧНО: Принудительно очищаем все UI ноды для предотвращения утечек памяти
+            try {
+                java.lang.reflect.Method clearUIMethod = appRef.getClass().getDeclaredMethod("clearUINodesSafely");
+                clearUIMethod.setAccessible(true);
+                clearUIMethod.invoke(appRef);
+            } catch (Exception e) {
+                System.err.println("Warning: Could not cleanup UI nodes before debug level start: " + e.getMessage());
+            }
+            
+            // Используем сохраненную ссылку, так как app уже обнулен в cleanup()
+            appRef.startDebugLevel(levelToStart);
+        });
     }
     
     private void closeDebugLevelsView() {

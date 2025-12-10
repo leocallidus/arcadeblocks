@@ -129,6 +129,7 @@ public class BonusIndicator extends VBox {
         Label timerLabel = new Label();
         timerLabel.setFont(Font.font("Orbitron", FontWeight.BOLD, 15));  // Увеличили с 12 до 15
         timerLabel.setTextFill(getTimerColor(durationSeconds));
+        timerLabel.setOpacity(0.85);
         timerLabel.setMaxWidth(230);   // Максимальная ширина для текста
         timerLabel.setMinWidth(230);   // Минимальная ширина для текста
         timerLabel.setPrefWidth(230);  // Предпочтительная ширина для текста
@@ -175,6 +176,15 @@ public class BonusIndicator extends VBox {
         
         if (hintLabel != null) {
             infoContainer.getChildren().addAll(nameLabel, timerLabel, hintLabel);
+        } else if (bonusType == BonusType.CALL_BALL) {
+            ArcadeBlocksApp app = (ArcadeBlocksApp) FXGL.getApp();
+            final String keyName = app.getSaveManager().getControlKey("CALL_BALL");
+            Label hint = new Label(localizationManager.format("help.powerups.call_ball_hint", keyName));
+            hint.setFont(Font.font("Orbitron", FontWeight.NORMAL, 11));
+            hint.setTextFill(Color.rgb(100, 255, 200));
+            hint.setMaxWidth(230);
+            hint.setWrapText(true);
+            infoContainer.getChildren().addAll(nameLabel, timerLabel, hint);
         } else {
             infoContainer.getChildren().addAll(nameLabel, timerLabel);
         }
@@ -189,6 +199,10 @@ public class BonusIndicator extends VBox {
         switch (bonusType) {
             case BONUS_SCORE:
                 return "debug.bonuses.bonus.extra_points";
+            case BONUS_SCORE_200:
+                return "debug.bonuses.bonus.extra_points_200";
+            case BONUS_SCORE_500:
+                return "debug.bonuses.bonus.extra_points_500";
             case EXTRA_LIFE:
                 return "debug.bonuses.bonus.extra_life";
             case INCREASE_PADDLE:
@@ -219,6 +233,8 @@ public class BonusIndicator extends VBox {
                 return "debug.bonuses.bonus.level_pass";
             case SCORE_RAIN:
                 return "debug.bonuses.bonus.score_rain";
+            case CALL_BALL:
+                return "debug.bonuses.bonus.call_ball";
             case TRICKSTER:
                 return "debug.bonuses.bonus.trickster";
             case RANDOM_BONUS:

@@ -2,6 +2,7 @@ package com.arcadeblocks.ui;
 
 import com.arcadeblocks.ArcadeBlocksApp;
 import com.arcadeblocks.config.GameConfig;
+import com.arcadeblocks.config.GameLine;
 import com.arcadeblocks.localization.LocalizationManager;
 import com.almasb.fxgl.dsl.FXGL;
 import javafx.animation.ScaleTransition;
@@ -97,6 +98,7 @@ public class GameOverView extends VBox {
         startOverButton.setOnAction(e -> {
             playMenuSelectSound();
             app.getAudioManager().stopMusic();
+            GameLine currentGameLine = GameLine.fromLevel(FXGL.geti("level"));
             
             // Явно сбрасываем флаг Game Over перед удалением UI
             app.setGameOver(false);
@@ -111,7 +113,7 @@ public class GameOverView extends VBox {
             
             if (app.getSaveManager() != null) {
                 int originalSlot = app.getOriginalSaveSlot();
-                app.getSaveManager().deleteSaveFileForSlot(originalSlot);
+                app.getSaveManager().deleteSaveFileForSlot(currentGameLine, originalSlot);
             }
             if (app.isDebugMode()) {
                 int currentLevel = FXGL.geti("level");
@@ -119,15 +121,15 @@ public class GameOverView extends VBox {
             } else {
                 if (app.getSaveManager() != null) {
                     int originalSlot = app.getOriginalSaveSlot();
-                    app.getSaveManager().setActiveSaveSlot(originalSlot);
+                    app.getSaveManager().setActiveSaveSlot(currentGameLine, originalSlot);
                     app.getSaveManager().resetProgressPreservingSlots();
-                    app.getSaveManager().setCurrentLevel(1);
+                    app.getSaveManager().setCurrentLevel(currentGameLine.getStartLevel());
                     app.getSaveManager().setLives(GameConfig.INITIAL_LIVES);
                     app.getSaveManager().setScore(0);
                     app.getSaveManager().awaitPendingWrites();
-                    app.getSaveManager().autoSaveToSlot(originalSlot);
+                    app.getSaveManager().autoSaveToSlot(currentGameLine, originalSlot);
                 }
-                app.startLevel(1, true);
+                app.startLevel(currentGameLine.getStartLevel(), true);
             }
         });
 
@@ -135,6 +137,7 @@ public class GameOverView extends VBox {
         mainMenuButton.setOnAction(e -> {
             playMenuSelectSound();
             app.getAudioManager().stopMusic();
+            GameLine currentGameLine = GameLine.fromLevel(FXGL.geti("level"));
             
             // КРИТИЧНО: Освобождаем фоновые изображения уровня перед возвратом в главное меню
             app.releaseLevelBackground();
@@ -151,7 +154,7 @@ public class GameOverView extends VBox {
             if (app.getSaveManager() != null) {
                 int originalSlot = app.getOriginalSaveSlot();
                 app.getSaveManager().clearGameSnapshot();
-                app.getSaveManager().deleteSaveFileForSlot(originalSlot);
+                app.getSaveManager().deleteSaveFileForSlot(currentGameLine, originalSlot);
             }
             java.util.List<com.almasb.fxgl.entity.Entity> entities = new java.util.ArrayList<>(com.almasb.fxgl.dsl.FXGL.getGameWorld().getEntities());
             for (com.almasb.fxgl.entity.Entity entity : entities) {
@@ -176,28 +179,8 @@ public class GameOverView extends VBox {
                         com.arcadeblocks.config.AudioConfig.GameProgressState.NORMAL;
                     
                     if (app.getSaveManager() != null) {
-                        int maxLevel = 0;
-                        boolean gameCompleted = false;
-                        
-                        // Проверяем все слоты сохранения
-                        for (int slot = 1; slot <= 4; slot++) {
-                            com.arcadeblocks.utils.SaveManager.SaveInfo saveInfo = app.getSaveManager().getSaveInfo(slot);
-                            if (saveInfo != null) {
-                                if (saveInfo.level > maxLevel) {
-                                    maxLevel = saveInfo.level;
-                                }
-                                if (app.getSaveManager().isGameCompletedInSlot(slot)) {
-                                    gameCompleted = true;
-                                }
-                            }
-                        }
-                        
-                        // Определяем состояние прогресса
-                        if (gameCompleted) {
-                            progressState = com.arcadeblocks.config.AudioConfig.GameProgressState.COMPLETED;
-                        } else if (maxLevel >= 101) {
-                            progressState = com.arcadeblocks.config.AudioConfig.GameProgressState.AFTER_LEVEL_100;
-                        }
+                        progressState = app.getSaveManager().getMenuProgressState();
+                        System.out.println("[GameOverView] progressState=" + progressState);
                     }
                     
                     String randomMainMenuMusic = com.arcadeblocks.config.AudioConfig.getRandomMainMenuMusic(progressState);

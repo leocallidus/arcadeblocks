@@ -97,6 +97,7 @@ public class LivesManager {
         app.blockMouseClicks();
 
         if (currentLives > 0) {
+            app.onLifeLost();
             currentLives--;
             
             // Останавливаем все звуки бонусов ПЕРЕД воспроизведением звука потери жизни
@@ -405,29 +406,40 @@ public class LivesManager {
     }
 
     private void persistLivesChange(boolean saveToSlot) {
-        if (app.getSaveManager() != null && !app.isDebugMode()) {
+        // app may already be nulled during cleanup(), so guard all access
+        ArcadeBlocksApp appRef = this.app;
+        if (appRef == null) {
+            return;
+        }
+
+        com.arcadeblocks.utils.SaveManager saveManager = appRef.getSaveManager();
+        boolean debugMode = appRef.isDebugMode();
+
+        if (saveManager != null && !debugMode) {
             // Жизни записываются в БД асинхронно через setLives()
-            app.getSaveManager().setLives(currentLives);
+            saveManager.setLives(currentLives);
             
             // Автосохранение слотов коалесцируется через FXGL.runOnce и никогда не блокирует UI поток
             if (saveToSlot && !autosaveScheduled) {
                 autosaveScheduled = true;
                 FXGL.runOnce(() -> {
-                    if (app.getSaveManager() != null) {
-                        app.getSaveManager().autoSaveToActiveSlot();
+                    ArcadeBlocksApp innerApp = this.app;
+                    com.arcadeblocks.utils.SaveManager innerSaveManager = innerApp != null ? innerApp.getSaveManager() : null;
+                    if (innerSaveManager != null) {
+                        innerSaveManager.autoSaveToActiveSlot();
                     }
                     autosaveScheduled = false;
                 }, LIVES_AUTOSAVE_DELAY);
             }
         }
 
-        if (app.isDebugMode()) {
-            app.setDebugLivesOverride(currentLives);
+        if (debugMode) {
+            appRef.setDebugLivesOverride(currentLives);
         }
 
         FXGL.set("lives", currentLives);
-        if (app.getGameplayUIView() != null) {
-            app.getGameplayUIView().updateLives(currentLives);
+        if (appRef.getGameplayUIView() != null) {
+            appRef.getGameplayUIView().updateLives(currentLives);
         }
     }
     

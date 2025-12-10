@@ -25,6 +25,7 @@ public class Brick extends Component {
     private int maxHealth;
     private Color color;
     private int scoreValue;
+    private final boolean countTowardsCompletion;
     private boolean isDestroyed = false; // Флаг для предотвращения повторного вызова destroy()
     private boolean removalHandled = false;
     private boolean shouldCheckCompletionOnRemoval = false;
@@ -36,23 +37,27 @@ public class Brick extends Component {
     private ScaleTransition currentScaleTransition;
     
     public Brick(int health, Color color, int scoreValue) {
-        this.health = health;
-        this.maxHealth = health;
-        this.color = color;
-        this.scoreValue = scoreValue;
+        this(health, color, scoreValue, false, true);
     }
     
     public Brick(int health, Color color, int scoreValue, boolean isExplosive) {
+        this(health, color, scoreValue, isExplosive, true);
+    }
+
+    public Brick(int health, Color color, int scoreValue, boolean isExplosive, boolean countTowardsCompletion) {
         this.health = health;
         this.maxHealth = health;
         this.color = color;
         this.scoreValue = scoreValue;
         this.isExplosive = isExplosive;
+        this.countTowardsCompletion = countTowardsCompletion;
     }
     
     @Override
     public void onAdded() {
-        ACTIVE_BRICKS.incrementAndGet();
+        if (countTowardsCompletion) {
+            ACTIVE_BRICKS.incrementAndGet();
+        }
         brickNode = resolveBrickNode();
         updateColor();
     }
@@ -150,7 +155,7 @@ public class Brick extends Component {
     public void destroy(boolean playSound) {
         if (isDestroyed) return; // Предотвращаем повторный вызов
         isDestroyed = true;
-        shouldCheckCompletionOnRemoval = true;
+        shouldCheckCompletionOnRemoval = countTowardsCompletion;
         
         if (playSound) {
             try {
@@ -390,6 +395,10 @@ public class Brick extends Component {
         }
         removalHandled = true;
 
+        if (!countTowardsCompletion) {
+            return;
+        }
+
         int remaining = ACTIVE_BRICKS.decrementAndGet();
         if (remaining < 0) {
             ACTIVE_BRICKS.set(0);
@@ -504,5 +513,145 @@ public class Brick extends Component {
      */
     public boolean isExplosive() {
         return isExplosive;
+    }
+    
+    public boolean countsForCompletion() {
+        return countTowardsCompletion;
+    }
+    
+    /**
+     * Разрушение кирпича плазменным снарядом с особой анимацией и звуком
+     */
+    public void destroyByPlasma() {
+        if (isDestroyed) return;
+        isDestroyed = true;
+        shouldCheckCompletionOnRemoval = countTowardsCompletion;
+        
+        // Воспроизводим случайный звук разрушения плазмой
+        try {
+            com.arcadeblocks.ArcadeBlocksApp app = (com.arcadeblocks.ArcadeBlocksApp) FXGL.getApp();
+            if (app != null && app.getAudioManager() != null) {
+                String soundFile = Math.random() < 0.5 
+                    ? "sounds/plasma_brick_hit1.wav" 
+                    : "sounds/plasma_brick_hit2.wav";
+                app.getAudioManager().playSFX(soundFile);
+            }
+        } catch (Exception e) {
+            // Игнорируем ошибки при проигрывании звука
+        }
+        
+        addScoreForBrick();
+        trySpawnBonus();
+        playPlasmaDestroyAnimation();
+    }
+    
+    /**
+     * Анимация разрушения плазмой - яркая вспышка с быстрым исчезновением
+     */
+    private void playPlasmaDestroyAnimation() {
+        Node viewNode = resolveBrickNode();
+        if (entity == null) {
+            handleBrickRemoval();
+            return;
+        }
+
+        if (viewNode == null) {
+            entity.removeFromWorld();
+            handleBrickRemoval();
+            return;
+        }
+
+        stopAllAnimations();
+        
+        // Яркая вспышка перед исчезновением
+        viewNode.setOpacity(1.5);
+        viewNode.setScaleX(1.2);
+        viewNode.setScaleY(1.2);
+        
+        // Быстрое исчезновение с расширением (эффект "выжигания")
+        currentFadeTransition = new FadeTransition(Duration.millis(150), viewNode);
+        currentFadeTransition.setFromValue(1.0);
+        currentFadeTransition.setToValue(0.0);
+        
+        currentScaleTransition = new ScaleTransition(Duration.millis(150), viewNode);
+        currentScaleTransition.setFromX(1.2);
+        currentScaleTransition.setFromY(1.2);
+        currentScaleTransition.setToX(1.5);
+        currentScaleTransition.setToY(0.3);
+        
+        currentFadeTransition.play();
+        currentScaleTransition.play();
+        
+        currentFadeTransition.setOnFinished(e -> {
+            if (entity != null) {
+                entity.removeFromWorld();
+            }
+            handleBrickRemoval();
+        });
+    }
+    
+    /**
+     * Разрушение кирпича энергетическим мячом с особой анимацией и звуком
+     */
+    public void destroyByEnergyBall() {
+        if (isDestroyed) return;
+        isDestroyed = true;
+        shouldCheckCompletionOnRemoval = true;
+        
+        // Воспроизводим звук разрушения энергетическим мячом
+        try {
+            com.arcadeblocks.ArcadeBlocksApp app = (com.arcadeblocks.ArcadeBlocksApp) FXGL.getApp();
+            if (app != null && app.getAudioManager() != null) {
+                app.getAudioManager().playSFX("sounds/energy_ball_brick_hit.wav");
+            }
+        } catch (Exception e) {
+            // Игнорируем ошибки при проигрывании звука
+        }
+        
+        addScoreForBrick();
+        trySpawnBonus();
+        playEnergyDestroyAnimation();
+    }
+    
+    /**
+     * Анимация разрушения энергетическим мячом - электрический эффект растворения
+     */
+    private void playEnergyDestroyAnimation() {
+        Node viewNode = resolveBrickNode();
+        if (entity == null) {
+            handleBrickRemoval();
+            return;
+        }
+
+        if (viewNode == null) {
+            entity.removeFromWorld();
+            handleBrickRemoval();
+            return;
+        }
+
+        stopAllAnimations();
+        
+        // Быстрое мерцание и растворение (эффект "электрического разряда")
+        currentFadeTransition = new FadeTransition(Duration.millis(200), viewNode);
+        currentFadeTransition.setFromValue(1.0);
+        currentFadeTransition.setToValue(0.0);
+        currentFadeTransition.setCycleCount(1);
+        
+        // Вибрация по горизонтали при растворении
+        currentScaleTransition = new ScaleTransition(Duration.millis(200), viewNode);
+        currentScaleTransition.setFromX(1.0);
+        currentScaleTransition.setFromY(1.0);
+        currentScaleTransition.setToX(0.0);
+        currentScaleTransition.setToY(1.3);
+        
+        currentFadeTransition.play();
+        currentScaleTransition.play();
+        
+        currentFadeTransition.setOnFinished(e -> {
+            if (entity != null) {
+                entity.removeFromWorld();
+            }
+            handleBrickRemoval();
+        });
     }
 }

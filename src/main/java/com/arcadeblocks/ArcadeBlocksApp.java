@@ -13,7 +13,9 @@ import com.almasb.fxgl.logging.Logger;
 import com.almasb.fxgl.logging.LoggerLevel;
 import com.arcadeblocks.config.AudioConfig;
 import com.arcadeblocks.config.GameConfig;
+import com.arcadeblocks.config.GameLine;
 import com.arcadeblocks.config.BonusConfig;
+import com.arcadeblocks.config.BonusLevelConfig;
 import com.arcadeblocks.persistence.GameSnapshot;
 import com.arcadeblocks.gameplay.Ball;
 import com.arcadeblocks.gameplay.Brick;
@@ -54,17 +56,27 @@ import javafx.geometry.BoundingBox;
 import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.Cursor;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.VBox;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.GridPane;
 import javafx.scene.paint.Color;
-import javafx.util.Duration;
 import javafx.scene.text.TextAlignment;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+import javafx.util.Duration;
 import javafx.animation.Animation;
 import javafx.animation.FadeTransition;
+import javafx.animation.FillTransition;
+import javafx.animation.ParallelTransition;
 import javafx.animation.PauseTransition;
 import javafx.animation.ScaleTransition;
+import javafx.animation.SequentialTransition;
 import javafx.animation.TranslateTransition;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -82,6 +94,7 @@ import javafx.scene.Node;
 import javafx.scene.Group;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.shape.Polygon;
 import javafx.scene.shape.Rectangle;
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
@@ -182,6 +195,26 @@ public class ArcadeBlocksApp extends GameApplication {
     private boolean isLevelCompleted = false;
     private boolean isGameOver = false;
     private int continueCount = 0;
+    private int levelStartScore = 0;
+    private int levelStartLives = 0;
+    private int levelStartLevel = -1;
+    private int livesLostThisLevel = 0;
+    private int positiveBonusesCollectedThisLevel = 0;
+    private int negativeBonusesCollectedThisLevel = 0;
+    private double cachedTurboSpeed = GameConfig.DEFAULT_TURBO_SPEED;
+
+    public double getTurboSpeed() {
+        return cachedTurboSpeed;
+    }
+
+    public void updateTurboSpeed() {
+        if (saveManager != null) {
+            cachedTurboSpeed = saveManager.getTurboModeSpeed();
+            if (paddleComponent != null) {
+                paddleComponent.setTurboMultiplier(cachedTurboSpeed);
+            }
+        }
+    }
 
     public int getContinueCount() {
         return continueCount;
@@ -193,6 +226,55 @@ public class ArcadeBlocksApp extends GameApplication {
 
     public void resetContinueCount() {
         this.continueCount = 0;
+    }
+
+    private void resetLevelRuntimeStats() {
+        livesLostThisLevel = 0;
+        positiveBonusesCollectedThisLevel = 0;
+        negativeBonusesCollectedThisLevel = 0;
+    }
+
+    private void recordLevelCompletionStats(int levelNumber, double levelTimeSeconds) {
+        if (saveManager == null || isDebugMode) {
+            return;
+        }
+        if (saveManager.isLevelStatsRecorded(levelNumber)) {
+            return;
+        }
+        GameLine line = GameLine.fromLevel(levelNumber);
+        saveManager.addLineTimeSeconds(line, Math.max(0, levelTimeSeconds));
+        saveManager.addLineBonuses(line, positiveBonusesCollectedThisLevel, negativeBonusesCollectedThisLevel);
+        saveManager.markLevelStatsRecorded(levelNumber);
+    }
+
+    private void ensureLevelStarsPersisted(int levelNumber) {
+        if (saveManager == null || isDebugMode) {
+            return;
+        }
+        int safeLivesLost = Math.max(0, livesLostThisLevel);
+        int filledStars = Math.min(5, Math.max(1, 5 - safeLivesLost));
+        saveManager.setLevelStars(levelNumber, filledStars);
+    }
+
+    private void recordLevelStartStats(int levelNumber) {
+        levelStartLevel = levelNumber;
+        levelStartScore = Math.max(0, FXGL.geti("score"));
+        levelStartLives = Math.max(1, FXGL.geti("lives"));
+    }
+
+    public void onLifeLost() {
+        livesLostThisLevel++;
+    }
+
+    public void onBonusCollected(BonusType bonusType) {
+        if (bonusType == null) {
+            return;
+        }
+        if (bonusType.isPositive()) {
+            positiveBonusesCollectedThisLevel++;
+        } else {
+            negativeBonusesCollectedThisLevel++;
+        }
     }
 
     public void setGameOver(boolean isGameOver) {
@@ -349,6 +431,7 @@ public class ArcadeBlocksApp extends GameApplication {
 
         // Reset game world state
         resetBallAndPaddle();
+        refreshLevelBackground();
 
         // Play countdown sound
         if (audioManager != null) {
@@ -452,12 +535,14 @@ public class ArcadeBlocksApp extends GameApplication {
     private UserAction turboPaddleAction;
     private UserAction callBallAction;
     private UserAction mouseCallBallAction;
+    private UserAction turboBallAction;
+    private UserAction turboBallMouseAction;
     private UserAction plasmaWeaponAction;
     private UserAction pauseAction;
     private UserAction mouseLaunchBallAction;
     private UserAction mousePlasmaWeaponAction;
-    // private UserAction destroyAllBricksAction;
-    // private UserAction skipToLevel100Action;
+    private UserAction destroyAllBricksAction;
+    private UserAction skipToLevel100Action;
     
     // Current level audio settings
     private String currentLevelLoadingSound = AudioConfig.DEFAULT_LEVEL_LOADING_SOUND;
@@ -503,7 +588,7 @@ public class ArcadeBlocksApp extends GameApplication {
         settings.setWidth(savedResolution.getWidth());
         settings.setHeight(savedResolution.getHeight());
         settings.setTitle("Arcade Blocks");
-        settings.setVersion("1.19");
+        settings.setVersion("1.20");
         settings.setMainMenuEnabled(false);
         
         // Setting up the app icon
@@ -664,6 +749,8 @@ public class ArcadeBlocksApp extends GameApplication {
         
         // Load settings
         saveManager.loadSettings();
+        // Apply cached turbo speed from settings before gameplay objects are created
+        updateTurboSpeed();
 
         // Apply saved language
         LocalizationManager.getInstance().setLanguage(saveManager.getLanguage());
@@ -999,8 +1086,14 @@ public class ArcadeBlocksApp extends GameApplication {
                             // If brick is explosive, trigger explosion before destruction
                             brickComponent.explodeNearbyBricks();
                         }
-                        // Use destroy() method from Brick for proper destruction animation
-                        brickComponent.destroy();
+                        boolean isPlayerPlasma = !projectileComponent.isBossProjectile()
+                            && "player".equalsIgnoreCase(projectileComponent.getOwner());
+                        // Use special plasma destroy for player plasma shots
+                        if (isPlayerPlasma) {
+                            brickComponent.destroyByPlasma();
+                        } else {
+                            brickComponent.destroy();
+                        }
                     }
                     
                     // Remove projectile
@@ -1237,25 +1330,74 @@ public class ArcadeBlocksApp extends GameApplication {
             }
         };
 
-        // destroyAllBricksAction = new UserAction("Debug Destroy Bricks") {
-        //     @Override
-        //     protected void onActionBegin() {
-        //         if (!canTriggerDebugHotkey()) {
-        //             return;
-        //         }
-        //         triggerDestroyAllBricksCheat();
-        //     }
-        // };
+        turboBallAction = new UserAction("Turbo Ball") {
+            @Override
+            protected void onActionBegin() {
+                var balls = FXGL.getGameWorld().getEntitiesByType(EntityType.BALL);
+                for (Entity ballEntity : balls) {
+                    Ball ballComponent = ballEntity.getComponent(Ball.class);
+                    if (ballComponent != null) {
+                        ballComponent.setTurboMode(true);
+                    }
+                }
+            }
 
-        // skipToLevel100Action = new UserAction("Debug Warp To Level 100") {
-        //     @Override
-        //     protected void onActionBegin() {
-        //         if (!canTriggerDebugHotkey()) {
-        //             return;
-        //         }
-        //         triggerWarpToLevel100Cheat();
-        //     }
-        // };
+            @Override
+            protected void onActionEnd() {
+                var balls = FXGL.getGameWorld().getEntitiesByType(EntityType.BALL);
+                for (Entity ballEntity : balls) {
+                    Ball ballComponent = ballEntity.getComponent(Ball.class);
+                    if (ballComponent != null) {
+                        ballComponent.setTurboMode(false);
+                    }
+                }
+            }
+        };
+
+        turboBallMouseAction = new UserAction("Turbo Ball Mouse") {
+            @Override
+            protected void onActionBegin() {
+                if (mouseClicksBlocked) return;
+                var balls = FXGL.getGameWorld().getEntitiesByType(EntityType.BALL);
+                for (Entity ballEntity : balls) {
+                    Ball ballComponent = ballEntity.getComponent(Ball.class);
+                    if (ballComponent != null) {
+                        ballComponent.setTurboMode(true);
+                    }
+                }
+            }
+
+            @Override
+            protected void onActionEnd() {
+                var balls = FXGL.getGameWorld().getEntitiesByType(EntityType.BALL);
+                for (Entity ballEntity : balls) {
+                    Ball ballComponent = ballEntity.getComponent(Ball.class);
+                    if (ballComponent != null) {
+                        ballComponent.setTurboMode(false);
+                    }
+                }
+            }
+        };
+
+         destroyAllBricksAction = new UserAction("Debug Destroy Bricks") {
+             @Override
+             protected void onActionBegin() {
+                 if (!canTriggerDebugHotkey()) {
+                     return;
+                 }
+                 triggerDestroyAllBricksCheat();
+             }
+         };
+
+         skipToLevel100Action = new UserAction("Debug Warp To Level 100") {
+             @Override
+             protected void onActionBegin() {
+                 if (!canTriggerDebugHotkey()) {
+                     return;
+                 }
+                 triggerWarpToLevel100Cheat();
+             }
+         };
 
         // Add all actions to the input system once with a dummy key
         // This registers the actions so they can be rebound later.
@@ -1267,10 +1409,11 @@ public class ArcadeBlocksApp extends GameApplication {
         FXGL.getInput().addAction(pauseAction, KeyCode.F18);
         FXGL.getInput().addAction(callBallAction, KeyCode.F19);
         FXGL.getInput().addAction(mouseLaunchBallAction, MouseButton.PRIMARY);
-        FXGL.getInput().addAction(mouseCallBallAction, MouseButton.MIDDLE);
+        FXGL.getInput().addAction(turboBallMouseAction, MouseButton.MIDDLE);
         FXGL.getInput().addAction(mousePlasmaWeaponAction, MouseButton.SECONDARY);
-        // FXGL.getInput().addAction(destroyAllBricksAction, KeyCode.P);
-        // FXGL.getInput().addAction(skipToLevel100Action, KeyCode.L);
+        FXGL.getInput().addAction(turboBallAction, KeyCode.F20);
+        //FXGL.getInput().addAction(destroyAllBricksAction, KeyCode.P);
+        //FXGL.getInput().addAction(skipToLevel100Action, KeyCode.L);
     }
     
     /**
@@ -1285,6 +1428,7 @@ public class ArcadeBlocksApp extends GameApplication {
             rebindAction("TURBO_PADDLE", turboPaddleAction);
             rebindAction("PLASMA_WEAPON", plasmaWeaponAction);
             rebindAction("PAUSE", pauseAction);
+            rebindAction("TURBO_BALL", turboBallAction);
 
         } catch (Exception e) {
             System.err.println("Error loading/rebinding control settings: " + e.getMessage());
@@ -1323,48 +1467,49 @@ public class ArcadeBlocksApp extends GameApplication {
             && !isGameOver;
     }
 
-    // private void triggerDestroyAllBricksCheat() {
-    //     destroyAllBricks();
-    // }
+     private void triggerDestroyAllBricksCheat() {
+         destroyAllBricks();
+     }
 
-    // private void triggerWarpToLevel100Cheat() {
-    //     if (isDebugMode) {
-    //         destroyAllBricks();
-    //         return;
-    //     }
-    //     pendingLevelWarpTarget = 100;
-    //     destroyAllBricks();
-    // }
+     private void triggerWarpToLevel100Cheat() {
+         if (isDebugMode) {
+             destroyAllBricks();
+             return;
+         }
+         pendingLevelWarpTarget = 100;
+         destroyAllBricks();
+     }
 
     private void activateCallBall() {
         if (!isGameplayState()) {
             return;
         }
+
+        if (bonusEffectManager == null || !bonusEffectManager.isCallBallBonusActive()) {
+            return;
+        }
         
         // КРИТИЧНО: Проверяем условия блокировки притягивания мяча
         boolean isBlocked = false;
+        boolean bonusOverrides = bonusEffectManager != null && bonusEffectManager.isCallBallBonusActive();
         
         // Блокировка на хардкорной сложности
-        if (getEffectiveDifficulty() == com.arcadeblocks.config.DifficultyLevel.HARDCORE) {
+        if (!bonusOverrides && getEffectiveDifficulty() == com.arcadeblocks.config.DifficultyLevel.HARDCORE) {
             isBlocked = true;
         }
         
         // Блокировка на boss уровнях (кроме легкой сложности)
-        if (getEffectiveDifficulty() != com.arcadeblocks.config.DifficultyLevel.EASY && 
+        if (!bonusOverrides &&
+            getEffectiveDifficulty() != com.arcadeblocks.config.DifficultyLevel.EASY && 
             com.arcadeblocks.config.LevelConfig.isBossLevel(FXGL.geti("level"))) {
             isBlocked = true;
         }
         
         callBallActiveSources++;
         
-        if (audioManager != null && (saveManager == null || saveManager.isCallBallSoundEnabled())) {
-            if (isBlocked) {
-                // Воспроизводим звук блокировки притягивания
-                audioManager.playSFXByName("call_to_paddle_block");
-            } else {
-                // Воспроизводим обычный звук притягивания
-                audioManager.playSFXByName("ball_call");
-            }
+        if (isBlocked && audioManager != null && (saveManager == null || saveManager.isCallBallSoundEnabled())) {
+            // Воспроизводим звук блокировки притягивания только если заблокировано
+            audioManager.playSFXByName("call_to_paddle_block");
         }
     }
 
@@ -1406,6 +1551,9 @@ public class ArcadeBlocksApp extends GameApplication {
                         break;
                     case "TURBO_PADDLE":
                         rebindActionWithKey("TURBO_PADDLE", turboPaddleAction, overrideKey);
+                        break;
+                    case "TURBO_BALL":
+                        rebindActionWithKey("TURBO_BALL", turboBallAction, overrideKey);
                         break;
                     case "PLASMA_WEAPON":
                         rebindActionWithKey("PLASMA_WEAPON", plasmaWeaponAction, overrideKey);
@@ -2246,6 +2394,9 @@ public class ArcadeBlocksApp extends GameApplication {
     }
 
     private void applyCallBallAttraction(double tpf) {
+        if (bonusEffectManager == null || !bonusEffectManager.isCallBallBonusActive()) {
+            return;
+        }
         if (!isCallBallActive() || paddleComponent == null) {
             return;
         }
@@ -2816,6 +2967,10 @@ public class ArcadeBlocksApp extends GameApplication {
     }
     
     public String getCurrentLevelCompleteSound() {
+        int currentLevel = FXGL.geti("level");
+        if (com.arcadeblocks.config.LevelConfig.isBossLevel(currentLevel)) {
+            return null; // Для боссов не проигрываем стандартный звук завершения
+        }
         if (currentLevelCompletionSounds == null || currentLevelCompletionSounds.isEmpty()) {
             return AudioConfig.DEFAULT_LEVEL_COMPLETE_SOUND;
         }
@@ -2962,6 +3117,8 @@ public class ArcadeBlocksApp extends GameApplication {
         }
         
         clearUINodesSafely();
+
+        resetLevelRuntimeStats();
         
         // Hide cursor during gameplay
         setHiddenCursor();
@@ -3089,6 +3246,7 @@ public class ArcadeBlocksApp extends GameApplication {
         
         // Set paddle speed from settings
         paddleComponent.setSpeed(saveManager.getPaddleSpeed());
+        paddleComponent.setTurboMultiplier(cachedTurboSpeed);
         
         // Ensure paddle movement is unblocked (especially important after Game Over restart)
         paddleComponent.setMovementBlocked(false);
@@ -3202,7 +3360,7 @@ public class ArcadeBlocksApp extends GameApplication {
         // Это предотвращает создание дубликатов фоновых изображений
         
         // Просто добавляем LanguageView поверх MainMenuView
-        FXGL.getGameScene().addUINode(new com.arcadeblocks.ui.LanguageView(this));
+        // TODO: LanguageView removed - FXGL.getGameScene().addUINode(new com.arcadeblocks.ui.LanguageView(this));
     }
     
     /**
@@ -3222,10 +3380,14 @@ public class ArcadeBlocksApp extends GameApplication {
      * Go to credits
      */
     public void showCredits() {
-        showCredits(false);
+        showCredits(false, false);
     }
     
     public void showCredits(boolean fromSaveSystem) {
+        showCredits(fromSaveSystem, false);
+    }
+
+    public void showCredits(boolean fromSaveSystem, boolean bonusEnding) {
         // Cancel pending music since credits will have its own music
         if (audioManager != null) {
             audioManager.cancelPendingMusic();
@@ -3241,7 +3403,28 @@ public class ArcadeBlocksApp extends GameApplication {
         cleanupGameplayState();
         
         clearUINodesSafely();
-        FXGL.getGameScene().addUINode(new com.arcadeblocks.ui.CreditsView(this, fromSaveSystem));
+        FXGL.getGameScene().addUINode(new com.arcadeblocks.ui.CreditsView(this, fromSaveSystem, bonusEnding));
+    }
+    
+    private void showCreditsForLBreakout1() {
+        if (audioManager != null) {
+            audioManager.cancelPendingMusic();
+            audioManager.stopMusic();
+        }
+
+        uninstallMousePaddleControlHandlers();
+        unblockMouseClicks();
+        setSystemCursor();
+
+        cleanupGameplayState();
+        clearUINodesSafely();
+        FXGL.getGameScene().addUINode(new com.arcadeblocks.ui.CreditsView(
+            this,
+            false,
+            false,
+            "textures/back4.jpg",
+            true
+        ));
     }
     
     /**
@@ -3260,6 +3443,21 @@ public class ArcadeBlocksApp extends GameApplication {
                 startMainMenuMusic();
                 
                 // Возвращаемся в главное меню
+                returnToMainMenuFromSettings();
+            });
+        });
+    }
+
+    /**
+     * Воспроизведение альтернативного видео после титров и возврат в главное меню
+     */
+    public void playAfterCreditsVideo(String videoPath, double fallbackDurationSeconds) {
+        playVideoOverlay(videoPath, fallbackDurationSeconds, remover -> {
+            javafx.application.Platform.runLater(() -> {
+                if (remover != null) {
+                    remover.run();
+                }
+                startMainMenuMusic();
                 returnToMainMenuFromSettings();
             });
         });
@@ -3334,6 +3532,7 @@ public class ArcadeBlocksApp extends GameApplication {
         if (scoreManager != null) {
             scoreManager.setScore(initialScore);
         }
+        recordLevelStartStats(levelNumber);
 
         // Reset level completion and transition flags
         isLevelCompleted = false;
@@ -3343,7 +3542,7 @@ public class ArcadeBlocksApp extends GameApplication {
         Runnable levelReloadGuard = beginLevelReloadGuard();
         com.arcadeblocks.gameplay.Ball.clearAttachedBalls();
 
-        com.arcadeblocks.config.LevelConfig.LevelData levelData = com.arcadeblocks.config.LevelConfig.getLevel(levelNumber);
+        com.arcadeblocks.config.LevelConfig.LevelData levelData = getLevelDataUnified(levelNumber);
         if (levelData == null) {
             System.err.println("Level " + levelNumber + " not found in configuration!");
             return;
@@ -3389,7 +3588,7 @@ public class ArcadeBlocksApp extends GameApplication {
                 }
 
                 com.arcadeblocks.gameplay.Brick.resetBrickCounter();
-                com.arcadeblocks.levels.LevelLoader.loadLevelFromJson(levelData.getLevelFile());
+                com.arcadeblocks.levels.LevelLoader.loadLevel(levelNumber, levelData);
 
                 playLevelMusic(levelNumber);
                 playPaddleBallFadeIn(false);
@@ -3521,7 +3720,7 @@ public class ArcadeBlocksApp extends GameApplication {
         return com.arcadeblocks.config.LevelConfig.isBossLevel(levelNumber) ? 12.0 : 4.0;
     }
 
-    private void showLevelCompletionMessage(int levelNumber) {
+    private void showLevelCompletionMessage(int levelNumber, int currentScore, int currentLives, Runnable onContinue) {
         boolean alreadyShowing = FXGL.getGameScene().getUINodes().stream()
             .anyMatch(node -> "levelCompletionMessage".equals(node.getUserData()));
         if (alreadyShowing) {
@@ -3530,6 +3729,8 @@ public class ArcadeBlocksApp extends GameApplication {
 
         com.arcadeblocks.localization.LocalizationManager localizationManager = 
             com.arcadeblocks.localization.LocalizationManager.getInstance();
+        unblockMouseClicks();
+        setSystemCursor();
         String playerName = saveManager != null ? saveManager.getPlayerName() : null;
         if (playerName == null || playerName.isBlank()) {
             playerName = localizationManager.get("player.default");
@@ -3543,79 +3744,443 @@ public class ArcadeBlocksApp extends GameApplication {
         }
 
         // Get chapter color for the level
-        com.arcadeblocks.config.LevelConfig.LevelChapter chapter = 
+        String chapterColor = GameConfig.NEON_PINK;
+        com.arcadeblocks.config.LevelConfig.LevelChapter chapter =
             com.arcadeblocks.config.LevelConfig.getChapter(levelNumber);
-        String chapterColor = (chapter != null) ? chapter.getAccentColorHex() : GameConfig.NEON_PINK;
+        if (chapter != null) {
+            chapterColor = chapter.getAccentColorHex();
+        } else if (com.arcadeblocks.config.BonusLevelConfig.isBonusLevel(levelNumber)) {
+            var bonusChapter = com.arcadeblocks.config.BonusLevelConfig.getChapter(levelNumber);
+            if (bonusChapter != null && bonusChapter.getAccentColorHex() != null) {
+                chapterColor = bonusChapter.getAccentColorHex();
+            }
+        }
 
         Label label = new Label(message);
-        label.setFont(javafx.scene.text.Font.font("Orbitron", javafx.scene.text.FontWeight.BOLD, 34));
+        label.setFont(Font.font("Orbitron", FontWeight.BOLD, 32));
         label.setTextFill(Color.web(chapterColor));
         label.setWrapText(true);
         label.setTextAlignment(TextAlignment.CENTER);
         label.setAlignment(Pos.CENTER);
-        label.setMaxWidth(GameConfig.GAME_WIDTH * 0.75);
+        label.setMaxWidth(GameConfig.GAME_WIDTH * 0.7);
 
-        // We soften the glow
         DropShadow glow = new DropShadow();
-        glow.setColor(Color.web(chapterColor, 0.6));
-        glow.setRadius(10);
-        glow.setSpread(0.25);
+        glow.setColor(Color.web(chapterColor, 0.55));
+        glow.setRadius(12);
+        glow.setSpread(0.28);
         label.setEffect(glow);
 
-        // Dark translucent container for text
-        javafx.scene.layout.StackPane backdrop = new javafx.scene.layout.StackPane();
-        backdrop.setStyle("-fx-background-color: rgba(15,15,28,0.45); -fx-background-radius: 14px;");
-        backdrop.setPadding(new Insets(18, 24, 18, 24));
-        javafx.scene.layout.StackPane content = new javafx.scene.layout.StackPane(label);
-        content.setPadding(Insets.EMPTY);
-        javafx.scene.layout.StackPane wrapper = new javafx.scene.layout.StackPane(backdrop, content);
-        wrapper.setPrefSize(GameConfig.GAME_WIDTH, GameConfig.GAME_HEIGHT);
-        wrapper.setAlignment(Pos.CENTER);
-        wrapper.setMouseTransparent(true);
-        wrapper.setOpacity(0);
-        wrapper.setUserData("levelCompletionMessage");
+        StackPane overlay = new StackPane();
+        overlay.setPrefSize(GameConfig.GAME_WIDTH, GameConfig.GAME_HEIGHT);
+        overlay.setStyle("-fx-background-color: rgba(3,5,12,0.75);");
+        overlay.setAlignment(Pos.TOP_CENTER);
+        overlay.setUserData("levelCompletionMessage");
+        overlay.setMouseTransparent(false);
+        overlay.setOpacity(0.0);
 
-        FXGL.getGameScene().addUINode(wrapper);
+        HBox starsRow = new HBox(12);
+        starsRow.setAlignment(Pos.CENTER);
+        List<Polygon> starShapes = new ArrayList<>(5);
+        Color filledStarColor = Color.web("#ffd447");
+        Color emptyStarColor = Color.web("#5c4c25");
+        Color starStroke = Color.web("#f6e8a6", 0.7);
+        for (int i = 0; i < 5; i++) {
+            Polygon star = createStarShape(22, 10);
+            star.setFill(emptyStarColor);
+            star.setStroke(starStroke);
+            star.setStrokeWidth(1.6);
+            star.setEffect(new DropShadow(10, Color.web(chapterColor, 0.4)));
+            star.setScaleX(0.9);
+            star.setScaleY(0.9);
+            starShapes.add(star);
+            starsRow.getChildren().add(star);
+        }
 
-        FadeTransition fadeIn = new FadeTransition(Duration.millis(450), wrapper);
-        fadeIn.setFromValue(0.0);
-        fadeIn.setToValue(1.0);
+        int safeLivesLost = Math.max(0, livesLostThisLevel);
+        int filledStars = Math.min(5, Math.max(1, 5 - safeLivesLost));
+        if (saveManager != null && !isDebugMode) {
+            saveManager.setLevelStars(levelNumber, filledStars);
+        }
 
-        ScaleTransition scaleTransition = new ScaleTransition(Duration.seconds(1.6), label);
-        scaleTransition.setFromX(1.0);
-        scaleTransition.setToX(1.05);
-        scaleTransition.setFromY(1.0);
-        scaleTransition.setToY(1.05);
-        scaleTransition.setAutoReverse(true);
-        scaleTransition.setCycleCount(Animation.INDEFINITE);
+        double levelTimeSeconds = scoreManager != null ? scoreManager.getLevelTimerSeconds() : 0.0;
 
-        TranslateTransition levitation = new TranslateTransition(Duration.seconds(2.2), label);
-        levitation.setFromY(0);
-        levitation.setToY(-10);
-        levitation.setAutoReverse(true);
-        levitation.setCycleCount(Animation.INDEFINITE);
+        GridPane statsGrid = new GridPane();
+        statsGrid.setHgap(18);
+        statsGrid.setVgap(10);
+        statsGrid.setAlignment(Pos.CENTER);
+        LocalizationManager lm = LocalizationManager.getInstance();
+        addStatRow(statsGrid, 0, lm.get("level.completion.stats.score"), formatScoreForSummary(currentScore));
+        addStatRow(statsGrid, 1, lm.get("level.completion.stats.time"), formatTimeForSummary(levelTimeSeconds));
+        addStatRow(statsGrid, 2, lm.get("level.completion.stats.lives_lost"), String.valueOf(safeLivesLost));
+        addStatRow(statsGrid, 3, lm.get("level.completion.stats.positive_bonuses"), String.valueOf(positiveBonusesCollectedThisLevel));
+        addStatRow(statsGrid, 4, lm.get("level.completion.stats.negative_bonuses"), String.valueOf(negativeBonusesCollectedThisLevel));
 
-        double displaySeconds = Math.max(4.0, getLevelCompletionPauseSeconds(levelNumber));
+        Button continueButton = new Button(lm.get("level.completion.button.continue"));
+        continueButton.setCursor(Cursor.HAND);
+        continueButton.setFont(Font.font("Orbitron", FontWeight.BOLD, 16));
+        continueButton.setTextFill(Color.web("#0c0c0f"));
+        continueButton.setStyle("-fx-background-color: linear-gradient(to right, #ffd447, #ffb347);" +
+            "-fx-background-radius: 14; -fx-border-radius: 14; -fx-border-color: rgba(0,0,0,0.35);" +
+            "-fx-border-width: 1; -fx-padding: 10 20 10 20;");
+        continueButton.setOnMouseEntered(e -> {
+            continueButton.setScaleX(1.03);
+            continueButton.setScaleY(1.03);
+            if (audioManager != null) {
+                audioManager.playSFX("sounds/menu_hover.wav");
+            }
+        });
+        continueButton.setOnMouseExited(e -> {
+            continueButton.setScaleX(1.0);
+            continueButton.setScaleY(1.0);
+        });
 
-        PauseTransition hold = new PauseTransition(Duration.seconds(displaySeconds));
-        hold.setOnFinished(e -> {
-            FadeTransition fadeOut = new FadeTransition(Duration.millis(450), wrapper);
-            fadeOut.setFromValue(wrapper.getOpacity());
+        Button restartButton = new Button(lm.get("level.completion.button.restart"));
+        restartButton.setCursor(Cursor.HAND);
+        restartButton.setFont(Font.font("Orbitron", FontWeight.BOLD, 16));
+        restartButton.setTextFill(Color.web("#f5f7ff"));
+        restartButton.setStyle("-fx-background-color: linear-gradient(to right, #343b55, #1f2436);" +
+            "-fx-background-radius: 14; -fx-border-radius: 14; -fx-border-color: rgba(255,255,255,0.08);" +
+            "-fx-border-width: 1; -fx-padding: 10 20 10 20;");
+        restartButton.setOnMouseEntered(e -> {
+            restartButton.setScaleX(1.03);
+            restartButton.setScaleY(1.03);
+            if (audioManager != null) {
+                audioManager.playSFX("sounds/menu_hover.wav");
+            }
+        });
+        restartButton.setOnMouseExited(e -> {
+            restartButton.setScaleX(1.0);
+            restartButton.setScaleY(1.0);
+        });
+
+        HBox buttonsRow = new HBox(12, restartButton, continueButton);
+        buttonsRow.setAlignment(Pos.CENTER);
+
+        VBox content = new VBox(16, label, starsRow, statsGrid, buttonsRow);
+        content.setAlignment(Pos.CENTER);
+        content.setPadding(new Insets(24, 28, 26, 28));
+        content.setMaxWidth(GameConfig.GAME_WIDTH * 0.7);
+        content.setStyle("-fx-background-color: rgba(18,20,30,0.95); -fx-background-radius: 18;" +
+            "-fx-border-radius: 18; -fx-border-color: rgba(255,255,255,0.08); -fx-border-width: 1;");
+        DropShadow cardShadow = new DropShadow();
+        cardShadow.setColor(Color.web(chapterColor, 0.35));
+        cardShadow.setRadius(16);
+        cardShadow.setSpread(0.12);
+        content.setEffect(cardShadow);
+        StackPane.setMargin(content, new Insets(32, 0, 0, 0));
+
+        overlay.getChildren().add(content);
+        FXGL.getGameScene().addUINode(overlay);
+
+        SequentialTransition starAnimation = buildStarFillAnimation(starShapes, filledStars, filledStarColor, emptyStarColor);
+        ScaleTransition pop = new ScaleTransition(Duration.seconds(1.4), content);
+        pop.setFromX(0.98);
+        pop.setToX(1.02);
+        pop.setFromY(0.98);
+        pop.setToY(1.02);
+        pop.setAutoReverse(true);
+        pop.setCycleCount(Animation.INDEFINITE);
+
+        java.util.concurrent.atomic.AtomicBoolean actionTaken = new java.util.concurrent.atomic.AtomicBoolean(false);
+        Runnable triggerContinue = () -> {
+            if (actionTaken.getAndSet(true)) {
+                return;
+            }
+            starAnimation.stop();
+            pop.stop();
+            FadeTransition fadeOut = new FadeTransition(Duration.millis(220), overlay);
             fadeOut.setToValue(0.0);
             fadeOut.setOnFinished(evt -> {
-                scaleTransition.stop();
-                levitation.stop();
-                removeUINodeSafely(wrapper);
+                removeUINodeSafely(overlay);
+                recordLevelCompletionStats(levelNumber, levelTimeSeconds);
+                if (onContinue != null) {
+                    onContinue.run();
+                }
             });
             fadeOut.play();
+        };
+        Runnable triggerRestart = () -> {
+            if (actionTaken.getAndSet(true)) {
+                return;
+            }
+            starAnimation.stop();
+            pop.stop();
+            FadeTransition fadeOut = new FadeTransition(Duration.millis(220), overlay);
+            fadeOut.setToValue(0.0);
+            fadeOut.setOnFinished(evt -> {
+                removeUINodeSafely(overlay);
+                restartLevelFromCompletion(levelNumber, currentScore, currentLives);
+            });
+            fadeOut.play();
+        };
+
+        continueButton.setOnAction(e -> {
+            if (audioManager != null) {
+                audioManager.playSFX("sounds/menu_select.wav");
+            }
+            triggerContinue.run();
+        });
+        restartButton.setOnAction(e -> {
+            if (audioManager != null) {
+                audioManager.playSFX("sounds/menu_back.wav");
+            }
+            triggerRestart.run();
         });
 
-        fadeIn.setOnFinished(e -> {
-            scaleTransition.play();
-            levitation.play();
-            hold.play();
+        FadeTransition fadeIn = new FadeTransition(Duration.millis(380), overlay);
+        fadeIn.setFromValue(0.0);
+        fadeIn.setToValue(1.0);
+        fadeIn.setOnFinished(e -> starAnimation.play());
+        fadeIn.play();
+
+        pop.play();
+
+    }
+
+    private void addStatRow(GridPane grid, int rowIndex, String labelText, String valueText) {
+        Label label = new Label(labelText);
+        label.setFont(Font.font("Orbitron", FontWeight.NORMAL, 14));
+        label.setTextFill(Color.web("#9fb2c8"));
+        Label value = new Label(valueText);
+        value.setFont(Font.font("Orbitron", FontWeight.BOLD, 16));
+        value.setTextFill(Color.web("#f3f6ff"));
+        grid.add(label, 0, rowIndex);
+        grid.add(value, 1, rowIndex);
+    }
+
+    public void restartCurrentLevelFromPause() {
+        int levelNumber = FXGL.geti("level");
+        int score = scoreManager != null ? scoreManager.getCurrentScore() : FXGL.geti("score");
+        int lives = FXGL.geti("lives");
+        restartLevelFromCompletion(levelNumber, score, lives);
+    }
+
+    private void restartLevelFromCompletion(int levelNumber, int score, int lives) {
+        javafx.application.Platform.runLater(() -> {
+            isLevelCompleted = false;
+            isTransitioning = false;
+            levelCompletedMessageShown = false;
+            proceedToNextLevelCalled = false;
+            pendingLevelWarpTarget = null;
+            int restartScore = levelStartScore;
+            int restartLives = levelStartLives;
+            if (levelStartLevel != levelNumber || restartLives <= 0) {
+                restartScore = score;
+                restartLives = lives;
+            }
+            restartLives = Math.max(1, restartLives);
+            restartScore = Math.max(0, restartScore);
+            if (saveManager != null && !isDebugMode) {
+                saveManager.clearGameSnapshot();
+                saveManager.setLevelCompleted(levelNumber, false);
+                saveManager.setCurrentLevel(levelNumber);
+                saveManager.setScore(restartScore);
+                saveManager.setLives(restartLives);
+            }
+            FXGL.set("score", restartScore);
+            FXGL.set("lives", restartLives);
+            if (scoreManager != null) {
+                scoreManager.setScore(restartScore);
+                scoreManager.setLevelTimerSeconds(0);
+            }
+            if (livesManager != null) {
+                livesManager.setLives(restartLives);
+            }
+            if (gameplayUIView != null) {
+                gameplayUIView.updateScore(restartScore);
+                gameplayUIView.updateLives(restartLives);
+            }
+            startLevel(levelNumber, false);
+        });
+    }
+
+    private String formatTimeForSummary(double seconds) {
+        int totalSeconds = (int) Math.max(0, Math.round(seconds));
+        int minutes = totalSeconds / 60;
+        int remainingSeconds = totalSeconds % 60;
+        return String.format("%02d:%02d", minutes, remainingSeconds);
+    }
+
+    private String formatScoreForSummary(int score) {
+        return String.format("%,d", Math.max(0, score));
+    }
+
+    private Polygon createStarShape(double outerRadius, double innerRadius) {
+        Polygon star = new Polygon();
+        for (int i = 0; i < 10; i++) {
+            double angleDeg = -90 + i * 36;
+            double angleRad = Math.toRadians(angleDeg);
+            double radius = (i % 2 == 0) ? outerRadius : innerRadius;
+            double x = radius * Math.cos(angleRad);
+            double y = radius * Math.sin(angleRad);
+            star.getPoints().addAll(x, y);
+        }
+        return star;
+    }
+
+    private SequentialTransition buildStarFillAnimation(List<Polygon> stars, int filledStars, Color filledColor, Color emptyColor) {
+        SequentialTransition sequence = new SequentialTransition();
+        int cappedFilled = Math.max(0, Math.min(filledStars, stars.size()));
+        for (int i = 0; i < cappedFilled; i++) {
+            Polygon star = stars.get(i);
+            FillTransition fill = new FillTransition(Duration.millis(240), star, emptyColor, filledColor);
+            ScaleTransition pop = new ScaleTransition(Duration.millis(260), star);
+            pop.setFromX(0.75);
+            pop.setFromY(0.75);
+            pop.setToX(1.1);
+            pop.setToY(1.1);
+            pop.setAutoReverse(true);
+            pop.setCycleCount(2);
+            PauseTransition sound = new PauseTransition(Duration.ZERO);
+            sound.setOnFinished(evt -> {
+                if (audioManager != null) {
+                    audioManager.playSFX("sounds/extra_score.wav");
+                }
+            });
+            ParallelTransition step = new ParallelTransition(fill, pop);
+            sequence.getChildren().add(new SequentialTransition(sound, step, new PauseTransition(Duration.millis(80))));
+        }
+        return sequence;
+    }
+
+    private void showGameLineCompletionOverlay(GameLine gameLine, Runnable onContinue) {
+        boolean alreadyShowing = FXGL.getGameScene().getUINodes().stream()
+            .anyMatch(node -> "gameLineCompletionMessage".equals(node.getUserData()));
+        if (alreadyShowing) {
+            return;
+        }
+        unblockMouseClicks();
+        setSystemCursor();
+
+        GameLine line = gameLine != null ? gameLine : GameLine.fromLevel(FXGL.geti("level"));
+        LocalizationManager lm = LocalizationManager.getInstance();
+        String lineName = lm.get(line.getNameKey());
+        String playerName = saveManager != null ? saveManager.getPlayerName() : null;
+        if (playerName == null || playerName.isBlank()) {
+            playerName = lm.get("player.default");
+        }
+
+        String headlineText = String.format("%s %s %s", playerName,
+            lm.get("level.completion.final.congrats"), lineName);
+
+        Label headline = new Label(headlineText);
+        headline.setFont(Font.font("Orbitron", FontWeight.EXTRA_BOLD, 26));
+        headline.setTextFill(Color.web("#7CFF72"));
+        headline.setWrapText(true);
+        headline.setTextAlignment(TextAlignment.CENTER);
+        headline.setAlignment(Pos.CENTER);
+        headline.setMaxWidth(GameConfig.GAME_WIDTH * 0.8);
+        DropShadow headShadow = new DropShadow();
+        headShadow.setColor(Color.web("#7CFF72", 0.7));
+        headShadow.setRadius(14);
+        headShadow.setSpread(0.18);
+        headline.setEffect(headShadow);
+
+        int totalScore = saveManager != null ? saveManager.getScore() : FXGL.geti("score");
+        int totalLevels = line.getEndLevel() - line.getStartLevel() + 1;
+        double totalTimeSeconds = saveManager != null ? saveManager.getLineTimeSeconds(line) : -1.0;
+        int totalPos = saveManager != null ? saveManager.getLinePositiveBonuses(line) : 0;
+        int totalNeg = saveManager != null ? saveManager.getLineNegativeBonuses(line) : 0;
+        double avgStars = saveManager != null ? saveManager.getAverageStarsForLine(line) : -1.0;
+
+        GridPane stats = new GridPane();
+        stats.setHgap(18);
+        stats.setVgap(10);
+        stats.setAlignment(Pos.CENTER);
+        addStatRow(stats, 0, lm.get("level.completion.stats.score"), formatScoreForSummary(totalScore));
+        addStatRow(stats, 1, lm.get("level.completion.stats.levels_total"), String.valueOf(totalLevels));
+        addStatRow(stats, 2, lm.get("level.completion.stats.time_total"), formatTimeForSummary(totalTimeSeconds));
+        addStatRow(stats, 3, lm.get("level.completion.stats.positive_bonuses_total"), String.valueOf(totalPos));
+        addStatRow(stats, 4, lm.get("level.completion.stats.negative_bonuses_total"), String.valueOf(totalNeg));
+
+        Label avgLabel = new Label(lm.get("level.completion.stats.avg_stars"));
+        avgLabel.setFont(Font.font("Orbitron", FontWeight.NORMAL, 14));
+        avgLabel.setTextFill(Color.web("#9fb2c8"));
+        Label avgValue = new Label(avgStars > 0 ? String.format("%.2f ★", avgStars) : "—");
+        avgValue.setFont(Font.font("Orbitron", FontWeight.EXTRA_BOLD, 18));
+        avgValue.setTextFill(Color.web("#ffd447"));
+        DropShadow avgGlow = new DropShadow();
+        avgGlow.setColor(Color.web("#ffd447", 0.7));
+        avgGlow.setRadius(12);
+        avgGlow.setSpread(0.22);
+        avgValue.setEffect(avgGlow);
+        stats.add(avgLabel, 0, 5);
+        stats.add(avgValue, 1, 5);
+
+        ScaleTransition avgPulse = new ScaleTransition(Duration.seconds(1.2), avgValue);
+        avgPulse.setFromX(0.96);
+        avgPulse.setToX(1.08);
+        avgPulse.setFromY(0.96);
+        avgPulse.setToY(1.08);
+        avgPulse.setCycleCount(Animation.INDEFINITE);
+        avgPulse.setAutoReverse(true);
+
+        Button continueButton = new Button(lm.get("level.completion.button.continue"));
+        continueButton.setCursor(Cursor.HAND);
+        continueButton.setFont(Font.font("Orbitron", FontWeight.BOLD, 16));
+        continueButton.setTextFill(Color.web("#0c0c0f"));
+        continueButton.setStyle("-fx-background-color: linear-gradient(to right, #ffd447, #ffb347);" +
+            "-fx-background-radius: 14; -fx-border-radius: 14; -fx-border-color: rgba(0,0,0,0.35);" +
+            "-fx-border-width: 1; -fx-padding: 10 26 10 26;");
+        continueButton.setOnMouseEntered(e -> {
+            continueButton.setScaleX(1.03);
+            continueButton.setScaleY(1.03);
+            if (audioManager != null) {
+                audioManager.playSFX("sounds/menu_hover.wav");
+            }
+        });
+        continueButton.setOnMouseExited(e -> {
+            continueButton.setScaleX(1.0);
+            continueButton.setScaleY(1.0);
         });
 
+        StackPane overlay = new StackPane();
+        overlay.setPrefSize(GameConfig.GAME_WIDTH, GameConfig.GAME_HEIGHT);
+        overlay.setStyle("-fx-background-color: rgba(3,5,12,0.82);");
+        overlay.setAlignment(Pos.TOP_CENTER);
+        overlay.setUserData("gameLineCompletionMessage");
+        overlay.setOpacity(0.0);
+
+        VBox content = new VBox(18, headline, stats, continueButton);
+        content.setAlignment(Pos.CENTER);
+        content.setPadding(new Insets(26, 28, 30, 28));
+        content.setMaxWidth(GameConfig.GAME_WIDTH * 0.78);
+        content.setStyle("-fx-background-color: rgba(14,16,24,0.98); -fx-background-radius: 18;" +
+            "-fx-border-radius: 18; -fx-border-color: rgba(255,255,255,0.08); -fx-border-width: 1;");
+        DropShadow cardShadow = new DropShadow();
+        cardShadow.setColor(Color.web("#7CFF72", 0.25));
+        cardShadow.setRadius(18);
+        cardShadow.setSpread(0.14);
+        content.setEffect(cardShadow);
+        StackPane.setMargin(content, new Insets(40, 0, 0, 0));
+
+        overlay.getChildren().add(content);
+        FXGL.getGameScene().addUINode(overlay);
+
+        Runnable triggerContinue = () -> {
+            FadeTransition fadeOut = new FadeTransition(Duration.millis(220), overlay);
+            fadeOut.setToValue(0.0);
+            fadeOut.setOnFinished(evt -> {
+                avgPulse.stop();
+                removeUINodeSafely(overlay);
+                if (onContinue != null) {
+                    onContinue.run();
+                }
+            });
+            fadeOut.play();
+        };
+
+        continueButton.setOnAction(e -> {
+            if (audioManager != null) {
+                audioManager.playSFX("sounds/menu_select.wav");
+            }
+            triggerContinue.run();
+        });
+
+        FadeTransition fadeIn = new FadeTransition(Duration.millis(380), overlay);
+        fadeIn.setFromValue(0.0);
+        fadeIn.setToValue(1.0);
+        fadeIn.setOnFinished(e -> avgPulse.play());
         fadeIn.play();
     }
     
@@ -3625,6 +4190,25 @@ public class ArcadeBlocksApp extends GameApplication {
     public void startLevel(int levelNumber) {
         startLevel(levelNumber, false);
     }
+    /**
+     * Получить данные уровня (обычного или бонусного)
+     */
+    private com.arcadeblocks.config.LevelConfig.LevelData getLevelDataUnified(int levelNumber) {
+        if (BonusLevelConfig.isBonusLevel(levelNumber)) {
+            BonusLevelConfig.BonusLevelData bonusData = BonusLevelConfig.getLevelData(levelNumber);
+            if (bonusData != null) {
+                return new com.arcadeblocks.config.LevelConfig.LevelData(
+                    bonusData.getNameKey(),
+                    bonusData.getName(),
+                    "level" + levelNumber + ".json",
+                    bonusData.getBackgroundImage(),
+                    bonusData.getMusicFile()
+                );
+            }
+        }
+        return com.arcadeblocks.config.LevelConfig.getLevel(levelNumber);
+    }
+
     
     /**
      * Start specified level with option to reset score
@@ -3660,7 +4244,7 @@ public class ArcadeBlocksApp extends GameApplication {
         isPaused = false;
         
         // Get level data
-        com.arcadeblocks.config.LevelConfig.LevelData levelData = com.arcadeblocks.config.LevelConfig.getLevel(levelNumber);
+        com.arcadeblocks.config.LevelConfig.LevelData levelData = getLevelDataUnified(levelNumber);
         if (levelData == null) {
             System.err.println("Level " + levelNumber + " not found in configuration!");
             return;
@@ -3695,6 +4279,7 @@ public class ArcadeBlocksApp extends GameApplication {
         // Set level
         FXGL.set("level", levelNumber);
         if (saveManager != null) {
+            saveManager.setCurrentGameLine(com.arcadeblocks.config.GameLine.fromLevel(levelNumber));
             saveManager.setCurrentLevel(levelNumber);
         }
         // System.out.println("Level set in FXGL: " + levelNumber);
@@ -3727,6 +4312,7 @@ public class ArcadeBlocksApp extends GameApplication {
             FXGL.set("lives", savedLives);
         }
         resetFadeState();
+        recordLevelStartStats(levelNumber);
         
 
         Runnable initializeLevelTask = () -> {
@@ -3745,6 +4331,7 @@ public class ArcadeBlocksApp extends GameApplication {
                     if (snapshot != null && snapshot.level == levelNumber) {
                         restored = restoreGameSnapshot(snapshot);
                         if (restored) {
+                            recordLevelStartStats(levelNumber);
                             saveManager.markResumeSnapshotConsumed();
                         }
                         // Очищаем snapshot после использования
@@ -3757,7 +4344,7 @@ public class ArcadeBlocksApp extends GameApplication {
 
                 if (!restored) {
                     com.arcadeblocks.gameplay.Brick.resetBrickCounter();
-                    com.arcadeblocks.levels.LevelLoader.loadLevelFromJson(levelData.getLevelFile());
+                    com.arcadeblocks.levels.LevelLoader.loadLevel(levelNumber, levelData);
         // System.out.println("Level " + levelNumber + " loaded from JSON: " + levelData.getName());
                 }
 
@@ -3878,6 +4465,9 @@ public class ArcadeBlocksApp extends GameApplication {
      * Setting the background image for the level
      */
     private void setLevelBackground(int levelNumber, String backgroundImage) {
+        if (saveManager != null && !saveManager.isLevelBackgroundEnabled()) {
+            return; // Фон отключен настройкой
+        }
         if (backgroundImage == null || backgroundImage.isEmpty()) {
             return;
         }
@@ -3949,6 +4539,22 @@ public class ArcadeBlocksApp extends GameApplication {
         // System.out.println("All background images have been cleared.");
         } catch (Exception e) {
             System.err.println("Error clearing background images: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Refresh the level background based on current settings.
+     */
+    public void refreshLevelBackground() {
+        clearLevelBackground();
+        if (saveManager != null && !saveManager.isLevelBackgroundEnabled()) {
+            // Пользователь отключил фон уровня
+            return;
+        }
+        int currentLevel = FXGL.geti("level");
+        com.arcadeblocks.config.LevelConfig.LevelData levelData = getLevelDataUnified(currentLevel);
+        if (levelData != null && levelData.getBackgroundImage() != null) {
+            setLevelBackground(currentLevel, levelData.getBackgroundImage());
         }
     }
 
@@ -4256,7 +4862,7 @@ public class ArcadeBlocksApp extends GameApplication {
             }
             
             // Get music from level configuration
-            com.arcadeblocks.config.LevelConfig.LevelData levelData = com.arcadeblocks.config.LevelConfig.getLevel(levelNumber);
+            com.arcadeblocks.config.LevelConfig.LevelData levelData = getLevelDataUnified(levelNumber);
             String musicFile = null;
             
             if (levelData != null && levelData.getMusicFile() != null && !levelData.getMusicFile().isEmpty()) {
@@ -5047,7 +5653,15 @@ public class ArcadeBlocksApp extends GameApplication {
             return;
         }
 
-        var remainingBricks = FXGL.getGameWorld().getEntitiesByType(EntityType.BRICK);
+        var remainingBricks = FXGL.getGameWorld()
+            .getEntitiesByType(EntityType.BRICK)
+            .stream()
+            .filter(entity -> {
+                Brick brick = entity.getComponentOptional(Brick.class).orElse(null);
+                return brick == null || brick.countsForCompletion();
+            })
+            .toList();
+
         if (remainingBricks.isEmpty() && Brick.getActiveBrickCount() == 0) {
             int currentLevel = FXGL.geti("level");
             int currentScore = scoreManager != null ? scoreManager.getCurrentScore() : 0;
@@ -5067,8 +5681,15 @@ public class ArcadeBlocksApp extends GameApplication {
             return;
         }
 
-        if (!FXGL.getGameWorld().getEntitiesByType(EntityType.BRICK).isEmpty()
-            || Brick.getActiveBrickCount() > 0) {
+        boolean hasRemainingBricks = FXGL.getGameWorld()
+            .getEntitiesByType(EntityType.BRICK)
+            .stream()
+            .anyMatch(entity -> {
+                Brick brick = entity.getComponentOptional(Brick.class).orElse(null);
+                return brick == null || brick.countsForCompletion();
+            });
+
+        if (hasRemainingBricks || Brick.getActiveBrickCount() > 0) {
             return;
         }
 
@@ -5122,10 +5743,6 @@ public class ArcadeBlocksApp extends GameApplication {
             }
         }
 
-        if (!finalVictory && !shouldPlayCompletionVideo) {
-            showLevelCompletionMessage(currentLevel);
-        }
-
         if (shouldPlayFinalVictorySequence) {
             // Уровень с поэмой (например, уровень 100) - показываем финальное видео, затем поэму
             javafx.application.Platform.runLater(() -> {
@@ -5152,19 +5769,20 @@ public class ArcadeBlocksApp extends GameApplication {
             // Обычное видео босса
             javafx.application.Platform.runLater(() -> {
                 if (!proceedToNextLevelCalled) {
-                    playBossCompletionVideo(metadata, completionSound,
-                        remover -> proceedToNextLevel(currentLevel, currentScore, currentLives, remover));
+                    playBossCompletionVideo(metadata, completionSound, remover -> {
+                        showLevelCompletionMessage(currentLevel, currentScore, currentLives,
+                            () -> proceedToNextLevel(currentLevel, currentScore, currentLives, remover));
+                    });
                 }
             });
         } else {
             // Обычный уровень без видео
-            javafx.animation.PauseTransition pause = new javafx.animation.PauseTransition(javafx.util.Duration.seconds(pauseSeconds));
-            pause.setOnFinished(event -> javafx.application.Platform.runLater(() -> {
+            javafx.application.Platform.runLater(() -> {
                 if (!proceedToNextLevelCalled) {
-                    proceedToNextLevel(currentLevel, currentScore, currentLives);
+                    showLevelCompletionMessage(currentLevel, currentScore, currentLives,
+                        () -> proceedToNextLevel(currentLevel, currentScore, currentLives));
                 }
-            }));
-            pause.play();
+            });
         }
     }
 
@@ -5182,7 +5800,6 @@ public class ArcadeBlocksApp extends GameApplication {
             return;
         }
 
-        int actualRemaining = FXGL.getGameWorld().getEntitiesByType(EntityType.BRICK).size();
         int trackedRemaining = Brick.getActiveBrickCount();
 
         if (trackedRemaining <= 0) {
@@ -5190,7 +5807,18 @@ public class ArcadeBlocksApp extends GameApplication {
             return;
         }
 
-        if (actualRemaining != 3 || trackedRemaining != 3) {
+        // Сопоставляем с фактическим числом разрушаемых кирпичей в мире, чтобы не спавнить бонус преждевременно
+        int worldBreakableRemaining = (int) FXGL.getGameWorld().getEntitiesByType(EntityType.BRICK).stream()
+            .map(e -> e.getComponentOptional(Brick.class).orElse(null))
+            .filter(b -> b != null && b.getHealth() > 0)
+            .count();
+
+        if (worldBreakableRemaining != trackedRemaining) {
+            return;
+        }
+
+        // Спавним только когда осталось ровно 3 разрушаемых кирпича
+        if (trackedRemaining != 3) {
             return;
         }
 
@@ -5236,8 +5864,9 @@ public class ArcadeBlocksApp extends GameApplication {
         if (metadata != null && metadata.shouldShowPoemAfterVictory()) {
             return true;
         }
-        // Также считаем финальной победой последний уровень игры
-        return levelNumber >= GameConfig.TOTAL_LEVELS;
+        // Также считаем финальной победой последний уровень текущей игровой линии
+        GameLine gameLine = GameLine.fromLevel(levelNumber);
+        return levelNumber >= gameLine.getEndLevel();
     }
 
     private void spawnLevelPassBonus() {
@@ -5323,14 +5952,18 @@ public class ArcadeBlocksApp extends GameApplication {
 
         Runnable continueFlow = () -> {
             if (shouldShowCompletionMessage) {
-                showLevelCompletionMessage(currentLevel);
+                showLevelCompletionMessage(currentLevel, currentScore, currentLives,
+                    () -> proceedToNextLevel(currentLevel, currentScore, currentLives));
+            } else {
+                proceedToNextLevel(currentLevel, currentScore, currentLives);
             }
-            proceedToNextLevel(currentLevel, currentScore, currentLives);
         };
 
         if (shouldPlayCompletionVideo) {
-            playBossCompletionVideo(metadata, completionSound,
-                remover -> proceedToNextLevel(currentLevel, currentScore, currentLives, remover));
+            playBossCompletionVideo(metadata, completionSound, remover -> {
+                showLevelCompletionMessage(currentLevel, currentScore, currentLives,
+                    () -> proceedToNextLevel(currentLevel, currentScore, currentLives, remover));
+            });
         } else {
             continueFlow.run();
         }
@@ -5342,6 +5975,7 @@ public class ArcadeBlocksApp extends GameApplication {
         if (livesManager != null) {
             livesManager.loseLife();
         } else {
+            onLifeLost();
             int remainingLives = Math.max(0, FXGL.geti("lives") - 1);
             FXGL.set("lives", remainingLives);
         }
@@ -5927,9 +6561,10 @@ public class ArcadeBlocksApp extends GameApplication {
         inPauseSettings = false;
 
         // Проверяем, нужно ли установить флаг завершения игры
-        if (saveManager != null) {
+        if (!isDebugMode && saveManager != null) {
             int currentLevel = FXGL.geti("level");
-            if (currentLevel >= 116) {
+            GameLine currentGameLine = GameLine.fromLevel(currentLevel);
+            if (currentLevel >= currentGameLine.getEndLevel()) {
                 // Игрок прошел уровень 116 - устанавливаем флаг завершения
                 saveManager.setGameCompletedForActiveSlot();
             }
@@ -6019,11 +6654,12 @@ public class ArcadeBlocksApp extends GameApplication {
             int nextLevel = pendingLevelWarpTarget != null ? pendingLevelWarpTarget : currentLevel + 1;
             pendingLevelWarpTarget = null;
 
-            if (nextLevel > GameConfig.TOTAL_LEVELS) {
-                if (overlayRemover != null) {
-                    javafx.application.Platform.runLater(overlayRemover);
-                }
-                showVictoryScreen(currentLevel);
+            GameLine currentGameLine = GameLine.fromLevel(currentLevel);
+            if (nextLevel > currentGameLine.getEndLevel()) {
+                Runnable videoCleanup = overlayRemover != null
+                    ? () -> javafx.application.Platform.runLater(overlayRemover)
+                    : null;
+                showVictoryScreen(currentLevel, videoCleanup);
             } else {
                 if (saveManager != null && !isDebugMode) {
                     saveManager.setCurrentLevel(nextLevel);
@@ -6048,36 +6684,76 @@ public class ArcadeBlocksApp extends GameApplication {
         }
     }
 
-    // public void destroyAllBricks() {
-    //     var bricks = new java.util.ArrayList<>(FXGL.getGameWorld().getEntitiesByType(EntityType.BRICK));
-    //     if (bricks.isEmpty()) {
-    //         return;
-    //     }
+     public void destroyAllBricks() {
+         var bricks = new java.util.ArrayList<>(FXGL.getGameWorld().getEntitiesByType(EntityType.BRICK));
+         if (bricks.isEmpty()) {
+             return;
+         }
 
-    //     for (Entity brickEntity : bricks) {
-    //         Brick brickComponent = brickEntity.getComponent(Brick.class);
-    //         if (brickComponent != null) {
-    //             brickComponent.destroySilently();
-    //         } else {
-    //             brickEntity.removeFromWorld();
-    //         }
-    //     }
+         for (Entity brickEntity : bricks) {
+             Brick brickComponent = brickEntity.getComponent(Brick.class);
+             if (brickComponent != null) {
+                 brickComponent.destroySilently();
+             } else {
+                 brickEntity.removeFromWorld();
+             }
+         }
 
-    //     FXGL.runOnce(this::checkLevelCompletion, Duration.millis(120));
-    // }
+         FXGL.runOnce(this::checkLevelCompletion, Duration.millis(120));
+     }
     
     /**
      * Show victory screen
      */
     private void showVictoryScreen(int completedLevel) {
+        showVictoryScreen(completedLevel, null);
+    }
+
+    private void showVictoryScreen(int completedLevel, Runnable videoCleanup) {
         com.arcadeblocks.config.LevelConfig.LevelMetadata metadata =
             com.arcadeblocks.config.LevelConfig.getMetadata(completedLevel);
         if (metadata != null && metadata.getCompletionVideoPath() != null && metadata.shouldShowPoemAfterVictory()) {
             playFinalVictorySequence(metadata);
             return;
         }
-        // Передаем true, так как это титры после завершения игры (уровень 116)
-        showCredits(true);
+        boolean bonusEnding = false;
+        com.arcadeblocks.config.BonusLevelConfig.BonusChapter bonusChapter =
+            com.arcadeblocks.config.BonusLevelConfig.getChapter(completedLevel);
+        if (bonusChapter != null && completedLevel >= bonusChapter.getEndLevel()) {
+            bonusEnding = true;
+        }
+        GameLine line = GameLine.fromLevel(completedLevel);
+        boolean isArcadeLineEnd = (line == GameLine.ARCADE_BLOCKS || line == GameLine.ARCADE_BLOCKS_BONUS)
+            && completedLevel >= line.getEndLevel();
+        boolean isLBreakoutEnd = (line == GameLine.LBREAKOUT1) && completedLevel >= line.getEndLevel();
+        if (isArcadeLineEnd) {
+            double levelTimeSeconds = scoreManager != null ? scoreManager.getLevelTimerSeconds() : 0.0;
+            ensureLevelStarsPersisted(completedLevel);
+            recordLevelCompletionStats(completedLevel, levelTimeSeconds);
+            final boolean bonusEndingFinal = bonusEnding;
+            showGameLineCompletionOverlay(line, () -> {
+                if (videoCleanup != null) {
+                    videoCleanup.run();
+                }
+                showCredits(true, bonusEndingFinal);
+            });
+        } else if (isLBreakoutEnd) {
+            double levelTimeSeconds = scoreManager != null ? scoreManager.getLevelTimerSeconds() : 0.0;
+            ensureLevelStarsPersisted(completedLevel);
+            recordLevelCompletionStats(completedLevel, levelTimeSeconds);
+            showGameLineCompletionOverlay(line, () -> {
+                if (videoCleanup != null) {
+                    videoCleanup.run();
+                }
+                showCreditsForLBreakout1();
+            });
+        } else {
+            // Передаем true, так как это титры после завершения игры (основная кампания или бонусная глава)
+            if (videoCleanup != null) {
+                videoCleanup.run();
+            }
+            showCredits(true, bonusEnding);
+        }
     }
 
     private void playFinalVictorySequence(com.arcadeblocks.config.LevelConfig.LevelMetadata metadata) {
@@ -6106,31 +6782,48 @@ public class ArcadeBlocksApp extends GameApplication {
         playVideoOverlay(metadata.getCompletionVideoPath(), duration, remover -> {
             // CRITICAL: Performing cleanup in the UI thread
             javafx.application.Platform.runLater(() -> {
-                // Call the remover, which will clear the overlay and MediaPlayer
-                if (remover != null) {
-                    try {
-                        remover.run();
-                    } catch (Exception e) {
-                        System.err.println("Error when removing the overlay from the final video: " + e.getMessage());
+                // Keep video overlay visible until after completion window
+                final Runnable videoCleanup = () -> {
+                    if (remover != null) {
+                        try {
+                            remover.run();
+                        } catch (Exception e) {
+                            System.err.println("Error when removing the overlay from the final video: " + e.getMessage());
+                        }
                     }
-                }
-                
+                    if (currentVideoToken == videoSessionToken) {
+                        cleanupActiveVideoResources();
+                    }
+                };
+
                 isVictorySequenceActive = false;
-                
-                // Checking the video session token before final cleanup
-                if (currentVideoToken == videoSessionToken) {
-                    // Final cleanup of all active video resources after completion of final victory video
-                    cleanupActiveVideoResources();
-                } else {
-                    //System.out.println("Final cleaning of the final video skipped - token expired (race condition prevented)");
-                }
-                
-                // Display the next screen after complete clearing
-                if (metadata.shouldShowPoemAfterVictory()) {
-                    showPoemScreen();
-                } else {
-                    showCredits();
-                }
+
+                int finalLevel = FXGL.geti("level");
+                double finalLevelTime = scoreManager != null ? scoreManager.getLevelTimerSeconds() : 0.0;
+                ensureLevelStarsPersisted(finalLevel);
+                recordLevelCompletionStats(finalLevel, finalLevelTime);
+
+                GameLine line = GameLine.fromLevel(finalLevel);
+                boolean showLineOverlay = (line == GameLine.ARCADE_BLOCKS || line == GameLine.ARCADE_BLOCKS_BONUS)
+                    && finalLevel >= line.getEndLevel();
+
+                Runnable nextStep = metadata.shouldShowPoemAfterVictory() ? this::showPoemScreen : this::showCredits;
+                int finalScore = scoreManager != null ? scoreManager.getCurrentScore() : FXGL.geti("score");
+                int finalLives = FXGL.geti("lives");
+
+                Runnable proceed = () -> {
+                    if (showLineOverlay) {
+                        showGameLineCompletionOverlay(line, () -> {
+                            videoCleanup.run();
+                            nextStep.run();
+                        });
+                    } else {
+                        videoCleanup.run();
+                        nextStep.run();
+                    }
+                };
+
+                showLevelCompletionMessage(finalLevel, finalScore, finalLives, proceed);
             });
         });
     }
@@ -6483,17 +7176,15 @@ public class ArcadeBlocksApp extends GameApplication {
                 videoNode = backend.prepareVideo(assetPath, currentRes.getWidth(), currentRes.getHeight());
             } catch (Exception e) {
                 System.err.println("Failed to prepare video with " + backend.getBackendName() + ": " + e.getMessage());
-                
-                // CRITICAL: Fallback to Stub backend if VLC couldn't load video
-                if (backend instanceof com.arcadeblocks.video.VlcjMediaBackend) {
-                    System.err.println("Trying fallback to Stub backend...");
+
+                // CRITICAL: Fallback to JavaFX Media backend if VLC couldn't load video
+                if (!(backend instanceof com.arcadeblocks.video.JavaFxMediaBackend)) {
                     try {
                         backend.cleanup();
-                        backend = new com.arcadeblocks.video.StubVideoBackend();
+                        backend = new com.arcadeblocks.video.JavaFxMediaBackend();
                         videoNode = backend.prepareVideo(assetPath, currentRes.getWidth(), currentRes.getHeight());
-                        // System.out.println("Successfully loaded via Stub backend fallback");
                     } catch (Exception fallbackException) {
-                        System.err.println("Stub fallback also failed: " + fallbackException.getMessage());
+                        System.err.println("JavaFX Media fallback failed: " + fallbackException.getMessage());
                         fallbackException.printStackTrace();
                         backend.cleanup();
                         if (onFinished != null) {
@@ -6502,7 +7193,6 @@ public class ArcadeBlocksApp extends GameApplication {
                         return;
                     }
                 } else {
-                    // If already Stub backend, just exit
                     backend.cleanup();
                     if (onFinished != null) {
                         onFinished.accept(() -> {});
@@ -6586,8 +7276,11 @@ public class ArcadeBlocksApp extends GameApplication {
                     javafx.scene.image.ImageView iv = (javafx.scene.image.ImageView) finalVideoNode;
                     iv.setFitWidth(width);
                     iv.setFitHeight(height);
+                } else if (finalVideoNode instanceof javafx.scene.media.MediaView) {
+                    javafx.scene.media.MediaView mv = (javafx.scene.media.MediaView) finalVideoNode;
+                    mv.setFitWidth(width);
+                    mv.setFitHeight(height);
                 } else if (finalVideoNode instanceof javafx.scene.layout.Pane) {
-                    // For StubVideoBackend Pane nodes
                     javafx.scene.layout.Pane pane = (javafx.scene.layout.Pane) finalVideoNode;
                     pane.setPrefWidth(width);
                     pane.setPrefHeight(height);
@@ -7238,38 +7931,13 @@ public class ArcadeBlocksApp extends GameApplication {
             com.arcadeblocks.config.AudioConfig.GameProgressState.NORMAL;
         
         if (saveManager != null) {
-            int maxLevel = 0;
-            boolean gameCompleted = false;
-            
-            // Проверяем все слоты сохранения
-            for (int slot = 1; slot <= 4; slot++) {
-                com.arcadeblocks.utils.SaveManager.SaveInfo saveInfo = saveManager.getSaveInfo(slot);
-                if (saveInfo != null) {
-                    // Находим максимальный достигнутый уровень
-                    if (saveInfo.level > maxLevel) {
-                        maxLevel = saveInfo.level;
-                    }
-                    // Проверяем, завершена ли игра
-                    if (saveManager.isGameCompletedInSlot(slot)) {
-                        gameCompleted = true;
-                    }
-                }
-            }
-            
-            // Определяем состояние прогресса
-            if (gameCompleted) {
-                progressState = com.arcadeblocks.config.AudioConfig.GameProgressState.COMPLETED;
-                // System.out.println("DEBUG: Game completed, using COMPLETED music");
-            } else if (maxLevel >= 101) {
-                progressState = com.arcadeblocks.config.AudioConfig.GameProgressState.AFTER_LEVEL_100;
-                // System.out.println("DEBUG: Max level " + maxLevel + ", using AFTER_LEVEL_100 music");
-            } else {
-                // System.out.println("DEBUG: Max level " + maxLevel + ", using NORMAL music");
-            }
+            progressState = saveManager.getMenuProgressState();
         }
         
         // Получаем случайную музыку в зависимости от прогресса игры
         String musicFile = com.arcadeblocks.config.AudioConfig.getRandomMainMenuMusic(progressState);
+
+        System.out.println("[ArcadeBlocksApp] startMainMenuMusic state=" + progressState + ", file=" + musicFile);
         
         // System.out.println("DEBUG: Starting main menu music: " + musicFile + " (state=" + progressState + ")");
         
@@ -7553,7 +8221,7 @@ public class ArcadeBlocksApp extends GameApplication {
         for (javafx.scene.Node node : uiNodes) {
             if (node instanceof com.arcadeblocks.ui.SettingsView || 
                 node instanceof com.arcadeblocks.ui.HelpView ||
-                node instanceof com.arcadeblocks.ui.LanguageView ||
+                // node instanceof com.arcadeblocks.ui.LanguageView ||
                 node instanceof com.arcadeblocks.ui.SaveGameView) {
                 removeUINodeSafely(node);
             }
@@ -7578,7 +8246,7 @@ public class ArcadeBlocksApp extends GameApplication {
         for (javafx.scene.Node node : FXGL.getGameScene().getUINodes()) {
             if (node instanceof com.arcadeblocks.ui.SettingsView || 
                 node instanceof com.arcadeblocks.ui.HelpView ||
-                node instanceof com.arcadeblocks.ui.LanguageView ||
+                // node instanceof com.arcadeblocks.ui.LanguageView ||
                 node instanceof com.arcadeblocks.ui.SaveGameView) {
                 return true;
             }

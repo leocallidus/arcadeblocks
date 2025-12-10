@@ -320,39 +320,11 @@ public class LoadingView extends StackPane {
 	private ImageView createBackgroundImage() {
 		try {
 			// Определяем состояние прогресса игры
-			com.arcadeblocks.config.AudioConfig.GameProgressState progressState = 
-				com.arcadeblocks.config.AudioConfig.GameProgressState.NORMAL;
-			
-			if (app != null && app.getSaveManager() != null) {
-				int maxLevel = 0;
-				boolean gameCompleted = false;
-				
-				// Проверяем все слоты сохранения
-				for (int slot = 1; slot <= 4; slot++) {
-					com.arcadeblocks.utils.SaveManager.SaveInfo saveInfo = app.getSaveManager().getSaveInfo(slot);
-					if (saveInfo != null) {
-						// Находим максимальный достигнутый уровень
-						if (saveInfo.level > maxLevel) {
-							maxLevel = saveInfo.level;
-						}
-						// Проверяем, завершена ли игра
-						if (app.getSaveManager().isGameCompletedInSlot(slot)) {
-							gameCompleted = true;
-						}
-					}
-				}
-				
-				// Определяем состояние прогресса
-				if (gameCompleted) {
-					progressState = com.arcadeblocks.config.AudioConfig.GameProgressState.COMPLETED;
-					// System.out.println("DEBUG: Game completed, using COMPLETED backgrounds");
-				} else if (maxLevel >= 101) {
-					progressState = com.arcadeblocks.config.AudioConfig.GameProgressState.AFTER_LEVEL_100;
-					// System.out.println("DEBUG: Max level " + maxLevel + ", using AFTER_LEVEL_100 backgrounds");
-				} else {
-					// System.out.println("DEBUG: Max level " + maxLevel + ", using NORMAL backgrounds");
-				}
-			}
+			com.arcadeblocks.config.AudioConfig.GameProgressState progressState =
+				(app != null && app.getSaveManager() != null)
+					? app.getSaveManager().getMenuProgressState()
+					: com.arcadeblocks.config.AudioConfig.GameProgressState.NORMAL;
+			System.out.println("[LoadingView] progressState=" + progressState);
 			
 			// Выбираем случайный фон в зависимости от прогресса игры
 			String randomBackground = com.arcadeblocks.config.AudioConfig.getRandomMainMenuBackground(progressState);
