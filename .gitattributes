@@ -1,1 +1,10 @@
-*.mp4 filter=lfs diff=lfs merge=lfs -text
+# Assets (binary) tracked via Git LFS
+src/main/resources/assets/**/*.png  filter=lfs diff=lfs merge=lfs -text
+src/main/resources/assets/**/*.jpg  filter=lfs diff=lfs merge=lfs -text
+src/main/resources/assets/**/*.jpeg filter=lfs diff=lfs merge=lfs -text
+src/main/resources/assets/**/*.svg  filter=lfs diff=lfs merge=lfs -text
+src/main/resources/assets/**/*.ico  filter=lfs diff=lfs merge=lfs -text
+src/main/resources/assets/**/*.am   filter=lfs diff=lfs merge=lfs -text
+src/main/resources/assets/**/*.mp3  filter=lfs diff=lfs merge=lfs -text
+src/main/resources/assets/**/*.wav  filter=lfs diff=lfs merge=lfs -text
+src/main/resources/assets/**/*.mp4  filter=lfs diff=lfs merge=lfs -text
