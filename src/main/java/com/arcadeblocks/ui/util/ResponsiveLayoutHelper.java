@@ -37,7 +37,7 @@ public final class ResponsiveLayoutHelper {
         adjust.run();
 
         Platform.runLater(() -> {
-            Stage stage = FXGL.getPrimaryStage();
+            Stage stage = getPrimaryStageOrNull();
             if (stage == null) {
                 adjust.run();
                 return;
@@ -120,9 +120,16 @@ public final class ResponsiveLayoutHelper {
     }
 
     private static void adjustRegion(Region region, BiConsumer<Double, Double> onSizeChanged) {
-        ArcadeBlocksApp app = (ArcadeBlocksApp) FXGL.getApp();
-        double width = Math.max(app.getEffectiveUIWidth(), GameConfig.GAME_WIDTH);
-        double height = Math.max(app.getEffectiveUIHeight(), GameConfig.GAME_HEIGHT);
+        double width = GameConfig.GAME_WIDTH;
+        double height = GameConfig.GAME_HEIGHT;
+
+        try {
+            ArcadeBlocksApp app = (ArcadeBlocksApp) FXGL.getApp();
+            width = Math.max(app.getEffectiveUIWidth(), GameConfig.GAME_WIDTH);
+            height = Math.max(app.getEffectiveUIHeight(), GameConfig.GAME_HEIGHT);
+        } catch (RuntimeException ignored) {
+            // FXGL is not initialized in isolated UI tests and lightweight previews.
+        }
         
         com.arcadeblocks.config.Resolution currentResolution = GameConfig.getCurrentResolution();
         if (currentResolution != null) {
@@ -151,6 +158,14 @@ public final class ResponsiveLayoutHelper {
 
         if (onSizeChanged != null) {
             onSizeChanged.accept(width, height);
+        }
+    }
+
+    private static Stage getPrimaryStageOrNull() {
+        try {
+            return FXGL.getPrimaryStage();
+        } catch (RuntimeException ignored) {
+            return null;
         }
     }
 }

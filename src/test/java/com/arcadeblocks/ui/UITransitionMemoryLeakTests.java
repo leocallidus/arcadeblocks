@@ -39,6 +39,7 @@ public class UITransitionMemoryLeakTests {
                 Platform.startup(() -> {
                     javaFXInitialized = true;
                 });
+                Platform.setImplicitExit(false);
                 // Даем время на инициализацию и убеждаемся, что Platform запущен
                 Thread.sleep(500);
                 
@@ -50,6 +51,7 @@ public class UITransitionMemoryLeakTests {
                 }
             } catch (IllegalStateException e) {
                 // JavaFX уже инициализирован
+                Platform.setImplicitExit(false);
                 javaFXInitialized = true;
             }
         }

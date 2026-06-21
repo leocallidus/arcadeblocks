@@ -97,6 +97,10 @@ public final class LocalizationManager {
     }
 
     private String get(String key, Locale locale) {
+        if (locale == null) {
+            locale = DEFAULT_LOCALE;
+        }
+
         ResourceBundle bundle = getBundle(locale);
         if (bundle != null && bundle.containsKey(key)) {
             return bundle.getString(key);
@@ -109,6 +113,10 @@ public final class LocalizationManager {
     }
 
     private ResourceBundle getBundle(Locale locale) {
+        if (locale == null) {
+            locale = DEFAULT_LOCALE;
+        }
+
         try {
             return ResourceBundle.getBundle("i18n.messages", locale, UTF8_CONTROL);
         } catch (MissingResourceException | NullPointerException e) {

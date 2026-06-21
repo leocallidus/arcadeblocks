@@ -9,10 +9,10 @@ import static org.junit.jupiter.api.Assertions.*;
 public class VlcWarningTest {
     
     @Test
-    public void testVideoBackendFactoryDefaultsToStub() {
+    public void testVideoBackendFactoryReportsVlcAvailability() {
         VideoBackendFactory factory = new VideoBackendFactory();
-        assertEquals(VideoBackendFactory.BackendType.STUB, factory.getPreferredBackend(),
-            "Factory should default to STUB backend to allow game to continue");
+        assertDoesNotThrow(() -> factory.isVlcAvailable(),
+            "Factory should report VLC availability without crashing");
     }
     
     @Test

@@ -27,6 +27,7 @@ public class UIComponentCleanupTests {
                 Platform.startup(() -> {
                     javaFXInitialized = true;
                 });
+                Platform.setImplicitExit(false);
                 // Даем время на инициализацию и убеждаемся, что Platform запущен
                 Thread.sleep(500);
                 
@@ -38,6 +39,7 @@ public class UIComponentCleanupTests {
                 }
             } catch (IllegalStateException e) {
                 // JavaFX уже инициализирован
+                Platform.setImplicitExit(false);
                 javaFXInitialized = true;
             }
         }
@@ -331,4 +333,3 @@ public class UIComponentCleanupTests {
         assertTrue(latch.await(5, TimeUnit.SECONDS), "Тест не завершился вовремя");
     }
 }
-
